@@ -1,4 +1,4 @@
-.PHONY: run ollama start init venv install format help clean
+.PHONY: run ollama start init venv install format help clean test stop-ollama
 
 venv:
 	@test -d .venv || python3 -m venv .venv
@@ -14,6 +14,10 @@ ollama:
 	@echo "Starting Ollama server in the background (if not already running)..."
 	@pgrep -f "ollama serve" > /dev/null || nohup ollama serve > ollama.log 2>&1 &
 
+stop-ollama:
+	@echo "Stopping all Ollama server processes..."
+	@pkill -f "ollama serve" || true
+
 start:
 	.venv/bin/python main.py
 
@@ -22,8 +26,11 @@ run: ollama install
 	@sleep 2
 	$(MAKE) start
 
+test:
+	.venv/bin/python -m unittest discover -s tests
+
 init:
-	mkdir -p src tests doc data
+	mkdir -p src tests doc data log
 	touch requirements.txt
 	@echo "# Python" > .gitignore
 	@echo ".venv/" >> .gitignore
@@ -31,6 +38,7 @@ init:
 	@echo "*.pyc" >> .gitignore
 	@echo "ollama.log" >> .gitignore
 	@echo "data/" >> .gitignore
+	@echo "log/" >> .gitignore
 	@echo "Structure initialisée."
 
 help:
@@ -39,10 +47,14 @@ help:
 	@echo "  install    - Install dependencies from requirements.txt."
 	@echo "  format     - Format the code in the src/ directory using Black."
 	@echo "  ollama     - Start the Ollama server in the background if not already running."
+	@echo "  stop-ollama - Stop all running Ollama server processes."
 	@echo "  start      - Run the main Python script (robot_path_explanation.py)."
 	@echo "  run        - Install dependencies, start Ollama, and run the main script."
+	@echo "  test       - Run all unittests in the tests/ directory."
 	@echo "  init       - Initialize the project structure and create a .gitignore file."
-	@echo "  clean      - Remove the virtual environment, cache files, and logs."
+	@echo "  clean      - Remove the virtual environment, cache files, logs, and output markdown in log/."
+	@echo ""
+	@echo "The final output markdown file is saved in the log/ directory."
 
 clean:
-	rm -rf .venv __pycache__ src/__pycache__ tests/__pycache__ ollama.log
+	rm -rf .venv __pycache__ src/__pycache__ tests/__pycache__ ollama.log log/
