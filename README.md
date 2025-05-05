@@ -14,7 +14,7 @@ This project demonstrates how to use a Large Language Model (LLM) to explain and
 1. **Clone the repository** (if not already done):
 
    ```sh
-   git clone <your-repo-url>
+   git clone git@github.com:Vlor999/HCI.git
    cd HCI
    ```
 
@@ -102,3 +102,9 @@ requirements.txt
 ---
 
 For more details, see the documentation in `doc/` or the comments in the source files.
+
+---
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
