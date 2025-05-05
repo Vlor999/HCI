@@ -1,0 +1,1 @@
+Your focus should be on the robot's ability to evaluate its past decisions, such as revisiting a location. For instance, the robot might reason: "I recognize this area—I visited it on [date/time] and made a specific decision." If the environment has changed, the robot should adapt its reasoning to account for these changes, rather than relying solely on previous decisions.
