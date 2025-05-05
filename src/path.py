@@ -1,6 +1,5 @@
 from datetime import datetime
 import json
-import os
 
 class Path:
     def __init__(self):
@@ -61,7 +60,6 @@ class Path:
             line = (
                 f"- {step['location']} at {step['timestamp']}: {step.get('context', '')}"
             )
-            # Add extra info if available
             if "average_speed" in step or "length" in step:
                 extra = []
                 if "average_speed" in step:

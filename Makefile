@@ -29,6 +29,18 @@ run: ollama install
 test:
 	.venv/bin/python -m unittest discover -s tests
 
+coverage:
+	.venv/bin/pip install coverage
+	.venv/bin/coverage run -m unittest discover -s tests
+	.venv/bin/coverage report -m
+	.venv/bin/coverage html
+	@echo ""
+	@echo "HTML coverage report generated at htmlcov/index.html"
+	@echo "To view it, open the file in your browser:"
+	@echo " * open htmlcov/index.html"
+	@echo "Or on Linux:"
+	@echo " * xdg-open htmlcov/index.html"
+
 init:
 	mkdir -p src tests doc data log
 	touch requirements.txt
@@ -51,6 +63,7 @@ help:
 	@echo "  start      - Run the main Python script (robot_path_explanation.py)."
 	@echo "  run        - Install dependencies, start Ollama, and run the main script."
 	@echo "  test       - Run all unittests in the tests/ directory."
+	@echo "  coverage   - Run coverage analysis on the tests."
 	@echo "  init       - Initialize the project structure and create a .gitignore file."
 	@echo "  clean      - Remove the virtual environment, cache files, logs, and output markdown in log/."
 	@echo ""
