@@ -8,19 +8,20 @@ This project demonstrates how to use a Large Language Model (LLM) to explain and
 - **[Ollama](https://ollama.com/)** (local LLM server)
 - **llama3.2** model (or another compatible model installed in Ollama)
 - **make** (optional, for easier automation)
+- **git** (for cloning the repository)
 
-## Setup Instructions
+## How to Download and Launch the Project on Any Computer
 
-1. **Clone the repository** (if not already done):
+1. **Clone the repository:**
 
    ```sh
-   git clone git@github.com:Vlor999/HCI.git
+   git clone https://github.com/Vlor999/HCI.git
    cd HCI
    ```
 
 2. **Install Ollama and the LLM model:**
 
-   - [Download and install Ollama](https://ollama.com/download)
+   - [Download and install Ollama](https://ollama.com/download) for your OS (Windows, macOS, Linux).
    - Start Ollama (if not already running):
 
      ```sh
@@ -68,6 +69,13 @@ This project demonstrates how to use a Large Language Model (LLM) to explain and
    make test
    ```
 
+7. **(Optional) Run coverage and view the HTML report:**
+
+   ```sh
+   make coverage
+   # Then open htmlcov/index.html in your browser
+   ```
+
 ## Usage
 
 - When running, the program will display the current robot path and context.
@@ -82,7 +90,8 @@ src/           # Source code (robotPathExplanation.py, path.py, io_console.py, e
 tests/         # Unit tests
 data/          # Example path data (JSON)
 log/           # Conversation logs (Markdown)
-doc/           # Documentation
+doc/           # Documentation and roadmap
+evaluation/    # Evaluation scripts and results
 Makefile       # Automation commands
 requirements.txt
 ```

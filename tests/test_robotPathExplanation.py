@@ -1,6 +1,7 @@
 import unittest
 from datetime import datetime
 from src.path import Path
+from evaluation.evaluate_outputs import evaluate_explanation
 
 def simulate_llm_response(prompt):
     return f"\nPrompt sent to LLM:\n{prompt}\n---\n(Simulated LLM response would appear here)\n"
@@ -56,6 +57,15 @@ class TestRobotPathExplanation(unittest.TestCase):
         )
         result = simulate_llm_response(prompt)
         self.assertIn("Prompt sent to LLM", result)
+
+    def test_evaluation(self):
+        explanation = "I avoided path A because it is marked as not usable due to snow in winter."
+        expected_keywords = ["avoided", "not usable", "snow", "winter"]
+        expected_answer = "I avoided path A because it is marked as not usable due to snow in winter."
+        result = evaluate_explanation(explanation, expected_keywords, expected_answer)
+        self.assertGreaterEqual(result["keyword_score"], 0.75)
+        self.assertEqual(result["exact_match"], 1)
+        self.assertGreater(result["final_score"], 0.7)
 
 if __name__ == "__main__":
     unittest.main()
