@@ -1,5 +1,4 @@
 import json
-import requests
 from src.llmInterface import query_llm
 
 class LLMModel:
@@ -8,7 +7,6 @@ class LLMModel:
         self.timeout = timeout
         self.manual = self._load_manual(manual_path)
         self.explanations = self._load_explanations(explanations_path)
-        self.primed = False
 
     def _load_manual(self, path):
         try:
@@ -44,24 +42,6 @@ class LLMModel:
         memory = conversation[-n:]
         return "\n".join(f"Q: {q}\nA: {a}" for q, a in memory)
 
-    def prime(self, path, conversation=None):
-        perception_json = self.summarize_perception_info(path)
-        memory = self.retrieve_contextual_memory(conversation or [], n=3)
-        context = (
-            "### Robot Manual:\n"
-            f"{self.manual}\n\n"
-            "### Example Explanations:\n"
-            + "\n".join(f"Q: {ex['input']}\nA: {ex['output']}" for ex in self.explanations)
-            + "\n\n"
-            "### Current Path (structured perception info):\n"
-            f"{perception_json}\n\n"
-            "### Recent Conversation Memory:\n"
-            f"{memory}\n\n"
-            "You are a robot assistant. Use this information to answer user questions about the robot's path, context, and reasoning."
-        )
-        _ = query_llm(context, self.model_name, timeout=self.timeout)
-        self.primed = True
-
     def build_full_prompt(self, path, context_log, question, conversation=None, build_explanation_prompt=None):
         perception_json = self.summarize_perception_info(path)
         memory = self.retrieve_contextual_memory(conversation or [], n=3)
@@ -77,12 +57,9 @@ class LLMModel:
         return prompt
 
     def ask(self, prompt, stream=False, print_stream_func=None):
-        """
-        Query the LLM. If stream=True and print_stream_func is provided,
-        print the answer as it is generated.
-        """
         if not stream:
             return query_llm(prompt, self.model_name, timeout=self.timeout)
+        import requests
         try:
             response = requests.post(
                 "http://localhost:11434/api/generate",
