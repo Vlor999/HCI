@@ -1,3 +1,6 @@
+from typing import List, Optional, Callable, Any
+from typeguard import typechecked
+
 def build_explanation_prompt(path, context_log, question):
     context_str = ""
     if context_log:

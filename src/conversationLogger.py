@@ -1,7 +1,14 @@
 import os
+from datetime import datetime
+from typing import List, Optional, Callable, Any
+from typeguard import typechecked
 
-def save_conversation(path, conversation, contextLog, logDir="log", filename="conversation_log.md"):
+@typechecked
+def save_conversation(path, conversation, contextLog, logDir:str="log", filename:str="conversation_log.md"):
     os.makedirs(logDir, exist_ok=True)
+    file = filename.split(".")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"{file[0]}_{timestamp}.{file[1]}"
     filepath = os.path.join(logDir, filename)
     with open(filepath, "w") as f:
         f.write("# Robot Path Conversation Log\n\n")

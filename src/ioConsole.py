@@ -1,21 +1,20 @@
 import questionary
+from typing import List, Optional, Callable, Any
+from typeguard import typechecked
 
 def ask_question():
-    return questionary.text(
-        "Ask a question about the path (e.g., 'Is this road a good one to take?')",
-        qmark="🤖"
-    ).ask() or ""
+    return questionary.text("Ask a question about the path (e.g., 'Is this road a good one to take?')", qmark="🤖").ask() or ""
 
 def print_path(path):
     print("\n📍 Current robot path with context:\n")
     print(path.to_prompt())
     print()
 
-def print_answer(answer):
+def print_answer(answer: str):
     print("\n🤖 Robot answer:\n")
     print(answer)
 
-def select_or_edit_question(questions):
+def select_or_edit_question(questions:str):
     if not questions:
         return None
     choice = questionary.select(

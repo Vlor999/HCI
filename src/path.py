@@ -1,27 +1,42 @@
 from datetime import datetime
 import json
+from typing import List, Optional, Callable, Any, Dict
+from typeguard import typechecked
 
 class PathStep:
-    def __init__(self, location, timestamp, context="", average_speed=None, length=None, seasonal_info=None):
-        self.location = location
-        self.timestamp = timestamp if isinstance(timestamp, str) else timestamp.isoformat()
-        self.context = context
-        self.average_speed = average_speed
-        self.length = length
-        self.seasonal_info = seasonal_info or {}
+    @typechecked
+    def __init__(
+        self,
+        location: str,
+        timestamp: str | datetime,
+        context: str = "",
+        average_speed: Optional[float] = None,
+        length: Optional[float] = None,
+        seasonal_info: Optional[Dict[str, str]] = None
+    ):
+        self.location: str = location
+        self.timestamp: str = timestamp if isinstance(timestamp, str) else timestamp.isoformat()
+        self.context: str = context
+        self.average_speed: Optional[float] = average_speed
+        self.length: Optional[float] = length
+        self.seasonal_info: Dict[str, str] = seasonal_info or {}
 
     @classmethod
-    def from_dict(cls, d):
+    @typechecked
+    def from_dict(cls, d: dict) -> "PathStep":
+        location = d.get("location") or ""
+        timestamp = d.get("timestamp") or ""
         return cls(
-            d.get("location"),
-            d.get("timestamp"),
+            str(location),
+            str(timestamp),
             d.get("context", ""),
             d.get("average_speed"),
             d.get("length"),
             d.get("seasonal_info", {})
         )
 
-    def to_dict(self):
+    @typechecked
+    def to_dict(self) -> dict:
         return {
             "location": self.location,
             "timestamp": self.timestamp,
@@ -31,9 +46,10 @@ class PathStep:
             "seasonal_info": self.seasonal_info
         }
 
-    def to_prompt(self):
-        line = f"- {self.location} at {self.timestamp}: {self.context}"
-        extra = []
+    @typechecked
+    def to_prompt(self) -> str:
+        line: str = f"- {self.location} at {self.timestamp}: {self.context}"
+        extra: List[str] = []
         if self.average_speed is not None:
             extra.append(f"average speed: {self.average_speed} km/h")
         if self.length is not None:
@@ -46,25 +62,30 @@ class PathStep:
         return line
 
 class Path:
-    def __init__(self, steps=None, description=""):
-        self.steps = steps or []
-        self.description = description
+    @typechecked
+    def __init__(self, steps: Optional[List[PathStep]] = None, description: str = ""):
+        self.steps: List[PathStep] = steps or []
+        self.description: str = description
 
     @classmethod
-    def from_json_file(cls, filepath, index=0):
+    @typechecked
+    def from_json_file(cls, filepath: str, index: int = 0) -> "Path":
         with open(filepath, "r") as f:
             data = json.load(f)
         scenario = data[index]
         steps = [PathStep.from_dict(step) for step in scenario["steps"]]
         return cls(steps, scenario.get("description", ""))
 
-    def add_step(self, step):
+    @typechecked
+    def add_step(self, step: PathStep) -> None:
         self.steps.append(step)
 
-    def to_prompt(self):
+    @typechecked
+    def to_prompt(self) -> str:
         return "\n".join(step.to_prompt() for step in self.steps)
 
-    def to_dict(self):
+    @typechecked
+    def to_dict(self) -> dict:
         return {
             "description": self.description,
             "steps": [step.to_dict() for step in self.steps]

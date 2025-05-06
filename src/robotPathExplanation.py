@@ -2,8 +2,12 @@ import os
 import time
 import questionary
 import json
+
+from typing import List, Optional, Callable, Any
+from typeguard import typechecked
+
 from src.path import Path
-from src.ioConsole import ask_question, print_path, print_answer, select_or_edit_question
+from src.ioConsole import ask_question, print_path, select_or_edit_question
 from src.conversationLogger import save_conversation
 from src.modelSelector import choose_model
 from src.pathCreator import create_custom_path
@@ -37,11 +41,7 @@ def choose_path_scenario():
             f"{idx}: {scenario.get('description', f'Scenario {idx+1}')}"
             for idx, scenario in enumerate(scenarios)
         ]
-        answer = questionary.select(
-            "Select a path scenario to use:",
-            choices=choices,
-            default=choices[0]
-        ).ask()
+        answer = questionary.select("Select a path scenario to use:", choices=choices, default=choices[0]).ask()
         if answer:
             idx = int(answer.split(":")[0])
             return idx

@@ -1,5 +1,7 @@
 from datetime import datetime
 from src.path import Path
+from typing import List, Optional, Callable, Any
+from typeguard import typechecked
 
 def create_custom_path():
     print("\nLet's create a custom path. Enter each step's details. Leave location empty to finish.")

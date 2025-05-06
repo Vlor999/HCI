@@ -1,5 +1,7 @@
 import requests
 import json
+from typing import List, Optional, Callable, Any
+from typeguard import typechecked
 
 def query_llm(prompt, model, timeout=120):
     try:

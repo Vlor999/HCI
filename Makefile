@@ -41,9 +41,14 @@ coverage:
 	@echo "Or on Linux:"
 	@echo " * xdg-open htmlcov/index.html"
 
+mypy:
+	.venv/bin/pip install mypy types-requests
+	.venv/bin/mypy src/
+
 init:
 	mkdir -p src tests doc data log
 	touch requirements.txt
+	@touch src/__init__.py
 	@echo "# Python" > .gitignore
 	@echo ".venv/" >> .gitignore
 	@echo "__pycache__/" >> .gitignore
@@ -64,6 +69,7 @@ help:
 	@echo "  run        - Install dependencies, start Ollama, and run the main script."
 	@echo "  test       - Run all unittests in the tests/ directory."
 	@echo "  coverage   - Run coverage analysis on the tests."
+	@echo "  mypy       - Run mypy static type checks on the src/ directory."
 	@echo "  init       - Initialize the project structure and create a .gitignore file."
 	@echo "  clean      - Remove the virtual environment, cache files, logs, and output markdown in log/."
 	@echo ""
