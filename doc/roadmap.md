@@ -105,4 +105,9 @@ You can ask ChatGPT to:
 
 ---
 
-*This roadmap provides a structured plan to help you move from a working RAG system toward a fully functional LLM-based human-robot explanation interface.*
+Tips for Integration
+Use embedding of perception info into a prompt-friendly format (structured JSON, summarized text, etc.).
+
+Pair with a retriever or contextual memory module if the robot needs to refer to prior actions or sensory inputs.
+
+Prioritize low-latency quantized variants for real-time interaction scenarios.

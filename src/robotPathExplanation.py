@@ -1,12 +1,17 @@
 import requests
 import json
 import os
+import sys
+import time
+import threading
 from src.path import Path
-from src.io_console import ask_question, print_path, print_answer, select_or_edit_question
-from src.conversation_logger import save_conversation
-from src.model_selector import choose_model
-from src.path_creator import create_custom_path
+from ioConsole import ask_question, print_path, print_answer, select_or_edit_question
+from conversationLogger import save_conversation
+from modelSelector import choose_model
+from pathCreator import create_custom_path
 import questionary
+from promptTemplates import build_explanation_prompt
+from llmInterface import query_llm
 
 MODEL_NAME_ENV = os.environ.get("LLM_MODEL", "llama3.2")
 TIMEOUT = int(os.environ.get("LLM_TIMEOUT", "120"))
@@ -52,6 +57,80 @@ def choose_path_scenario():
         print("Error loading path scenarios, using default (0).", e)
         return 0
 
+def load_background_knowledge():
+    # Load robot manual
+    manual = ""
+    try:
+        with open("data/documents/sample_manual.txt", "r") as f:
+            manual = f.read()
+    except Exception:
+        pass
+
+    # Load explanations dataset (optional)
+    explanations = []
+    try:
+        with open("data/explanations/sample_explanations.json", "r") as f:
+            explanations = json.load(f)
+    except Exception:
+        pass
+
+    return manual, explanations
+
+def summarize_perception_info(path):
+    """
+    Summarize perception info from the path into a prompt-friendly JSON-like string.
+    """
+    perception_summary = []
+    for step in path.steps:
+        perception = {
+            "location": step.location if hasattr(step, "location") else step.get("location"),
+            "timestamp": step.timestamp if hasattr(step, "timestamp") else step.get("timestamp"),
+            "context": step.context if hasattr(step, "context") else step.get("context"),
+            "average_speed": getattr(step, "average_speed", None) or step.get("average_speed", None),
+            "length": getattr(step, "length", None) or step.get("length", None),
+            "seasonal_info": getattr(step, "seasonal_info", None) or step.get("seasonal_info", None)
+        }
+        perception_summary.append(perception)
+    return json.dumps(perception_summary, indent=2)
+
+def retrieve_contextual_memory(conversation, n=3):
+    """
+    Retrieve the last n questions/answers as contextual memory.
+    """
+    if not conversation:
+        return ""
+    memory = conversation[-n:]
+    return "\n".join(
+        f"Q: {q}\nA: {a}" for q, a in memory
+    )
+
+def send_context_to_llm(model, timeout, path, manual, explanations, conversation=None):
+    perception_json = summarize_perception_info(path)
+    memory = retrieve_contextual_memory(conversation or [], n=3)
+    context = (
+        "### Robot Manual:\n"
+        f"{manual}\n\n"
+        "### Example Explanations:\n"
+        + "\n".join(f"Q: {ex['input']}\nA: {ex['output']}" for ex in explanations)
+        + "\n\n"
+        "### Current Path (structured perception info):\n"
+        f"{perception_json}\n\n"
+        "### Recent Conversation Memory:\n"
+        f"{memory}\n\n"
+        "You are a robot assistant. Use this information to answer user questions about the robot's path, context, and reasoning."
+    )
+    _ = query_llm(context, model, timeout=timeout)
+
+def spinner(stop_event):
+    spinner_chars = "|/-\\"
+    idx = 0
+    while not stop_event.is_set():
+        sys.stdout.write(f"\r🤖 Model is thinking... {spinner_chars[idx % len(spinner_chars)]}")
+        sys.stdout.flush()
+        idx += 1
+        time.sleep(0.1)
+    sys.stdout.write("\r" + " " * 40 + "\r")
+
 def robotPath():
     MODEL_NAME = choose_model(default_model=MODEL_NAME_ENV, timeout=TIMEOUT)
 
@@ -64,6 +143,11 @@ def robotPath():
         path = Path.from_json_file(PATHS_FILE, index=scenario_index)
 
     print_path(path)
+
+    manual, explanations = load_background_knowledge()
+    print("Priming the LLM with robot manual, example explanations, and path context...")
+    send_context_to_llm(MODEL_NAME, TIMEOUT, path, manual, explanations)
+    print("LLM primed. You can now ask your questions.\n")
 
     conversation = []
     context_log = []
@@ -90,9 +174,24 @@ def robotPath():
         if any(word in question.lower() for word in KEYWORDS):
             context_log.append(question)
 
-        prompt = build_prompt(path, context_log, question)
+        perception_json = summarize_perception_info(path)
+        memory = retrieve_contextual_memory(conversation, n=3)
+        prompt = (
+            build_explanation_prompt(path, context_log, question)
+            + "\n\n"
+            + "### Structured Perception Info:\n"
+            + perception_json
+            + "\n\n"
+            + "### Recent Conversation Memory:\n"
+            + memory
+        )
 
         print(f"Processing your question with the LLM model '{MODEL_NAME}'. This may take a while for large models...")
+
+        stop_event = threading.Event()
+        spinner_thread = threading.Thread(target=spinner, args=(stop_event,))
+        start_time = time.time()
+        spinner_thread.start()
         try:
             response = requests.post(
                 "http://localhost:11434/api/generate",
@@ -106,16 +205,14 @@ def robotPath():
                 if line:
                     data = json.loads(line)
                     explanation += data.get("response", "")
-            print_answer(explanation)
-            conversation.append((question, explanation))
-        except requests.exceptions.RequestException as e:
-            print(f"Error: Unable to connect to Ollama or model '{MODEL_NAME}'. Is it running on http://localhost:11434?")
-            print(e)
-            break
-        except json.JSONDecodeError as e:
-            print("Error: Failed to parse Ollama response.")
-            print(e)
-            break
+        finally:
+            stop_event.set()
+            spinner_thread.join()
+        elapsed = time.time() - start_time
+        print(f"\n⏱️ Model response time: {elapsed:.2f} seconds")
+
+        print_answer(explanation)
+        conversation.append((question, explanation))
 
     if conversation:
         save_conversation(path, conversation, context_log)

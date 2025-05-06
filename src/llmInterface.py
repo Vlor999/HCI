@@ -1,6 +1,5 @@
 import requests
 import json
-import os
 
 def query_llm(prompt, model, timeout=120):
     try:

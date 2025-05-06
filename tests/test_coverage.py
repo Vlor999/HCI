@@ -1,7 +1,7 @@
 import unittest
 from src.path import Path
-from src.io_console import ask_question, print_path, print_answer
-from src.conversation_logger import save_conversation
+from ioConsole import ask_question, print_path, print_answer
+from conversationLogger import save_conversation
 
 class TestCoverage(unittest.TestCase):
     def test_path_class(self):
