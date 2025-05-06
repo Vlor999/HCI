@@ -4,8 +4,11 @@ import os
 from src.path import Path
 from src.io_console import ask_question, print_path, print_answer, select_or_edit_question
 from src.conversation_logger import save_conversation
+from src.model_selector import choose_model
+from src.path_creator import create_custom_path
+import questionary
 
-MODEL_NAME = os.environ.get("LLM_MODEL", "llama3.2")
+MODEL_NAME_ENV = os.environ.get("LLM_MODEL", "llama3.2")
 TIMEOUT = int(os.environ.get("LLM_TIMEOUT", "120"))
 PATHS_FILE = "data/paths.json"
 
@@ -32,24 +35,34 @@ def choose_path_scenario():
     try:
         with open(PATHS_FILE, "r") as f:
             data = json.load(f)
-        print("Available path scenarios:")
-        for idx, scenario in enumerate(data):
-            desc = scenario.get("description", f"Scenario {idx+1}")
-            print(f"{idx}: {desc}")
-        while True:
-            choice = input(f"Select scenario index (0-{len(data)-1}, default 0): ").strip()
-            if not choice:
-                return 0
-            if choice.isdigit() and 0 <= int(choice) < len(data):
-                return int(choice)
-            print("Invalid input. Please enter a valid index.")
+        choices = [
+            f"{idx}: {scenario.get('description', f'Scenario {idx+1}')}"
+            for idx, scenario in enumerate(data)
+        ]
+        answer = questionary.select(
+            "Select a path scenario to use:",
+            choices=choices,
+            default=choices[0]
+        ).ask()
+        if answer:
+            idx = int(answer.split(":")[0])
+            return idx
+        return 0
     except Exception as e:
         print("Error loading path scenarios, using default (0).", e)
         return 0
 
 def robotPath():
-    scenario_index = choose_path_scenario()
-    path = Path.from_json_file(PATHS_FILE, index=scenario_index)
+    MODEL_NAME = choose_model(default_model=MODEL_NAME_ENV, timeout=TIMEOUT)
+
+    print("Do you want to use an existing path scenario or create a new one?")
+    use_existing = input("Type 'existing' to use a scenario from data, or 'new' to create your own (default: existing): ").strip().lower()
+    if use_existing == "new":
+        path = create_custom_path()
+    else:
+        scenario_index = choose_path_scenario()
+        path = Path.from_json_file(PATHS_FILE, index=scenario_index)
+
     print_path(path)
 
     conversation = []

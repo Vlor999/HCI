@@ -5,7 +5,7 @@ class Path:
     def __init__(self):
         self.steps = []
 
-    def add_step(self, location, timestamp, context="", average_speed=None, length=None):
+    def add_step(self, location, timestamp, context="", average_speed=None, length=None, seasonal_info=None):
         if isinstance(timestamp, datetime):
             timestamp = timestamp.isoformat()
         step = {
@@ -17,6 +17,8 @@ class Path:
             step["average_speed"] = average_speed
         if length is not None:
             step["length"] = length
+        if seasonal_info is not None:
+            step["seasonal_info"] = seasonal_info
         self.steps.append(step)
 
     @classmethod
@@ -28,7 +30,8 @@ class Path:
                 step["timestamp"],
                 step.get("context", ""),
                 step.get("average_speed"),
-                step.get("length")
+                step.get("length"),
+                step.get("seasonal_info")
             )
         return path
 
@@ -50,7 +53,8 @@ class Path:
                 ts,
                 step.get("context", ""),
                 step.get("average_speed"),
-                step.get("length")
+                step.get("length"),
+                step.get("seasonal_info")
             )
         return path
 
@@ -60,12 +64,17 @@ class Path:
             line = (
                 f"- {step['location']} at {step['timestamp']}: {step.get('context', '')}"
             )
-            if "average_speed" in step or "length" in step:
-                extra = []
-                if "average_speed" in step:
-                    extra.append(f"average speed: {step['average_speed']} km/h")
-                if "length" in step:
-                    extra.append(f"length: {step['length']} m")
+            extra = []
+            if "average_speed" in step:
+                extra.append(f"average speed: {step['average_speed']} km/h")
+            if "length" in step:
+                extra.append(f"length: {step['length']} m")
+            if "seasonal_info" in step:
+                seasons = ", ".join(
+                    f"{season}: {desc}" for season, desc in step["seasonal_info"].items()
+                )
+                extra.append(f"seasonal info: [{seasons}]")
+            if extra:
                 line += " [" + ", ".join(extra) + "]"
             lines.append(line)
         return "\n".join(lines)

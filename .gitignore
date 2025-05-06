@@ -1,6 +1,7 @@
 # Python
 
 data/
+log/
 
 # Virtual environment
 .venv/
