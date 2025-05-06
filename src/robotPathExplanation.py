@@ -4,14 +4,15 @@ import os
 import sys
 import time
 import threading
-from src.path import Path
-from ioConsole import ask_question, print_path, print_answer, select_or_edit_question
-from conversationLogger import save_conversation
-from modelSelector import choose_model
-from pathCreator import create_custom_path
 import questionary
-from promptTemplates import build_explanation_prompt
-from llmInterface import query_llm
+from src.path import Path
+from src.ioConsole import ask_question, print_path, print_answer, select_or_edit_question
+from src.conversationLogger import save_conversation
+from src.modelSelector import choose_model
+from src.pathCreator import create_custom_path
+from src.promptTemplates import build_explanation_prompt
+from src.llmInterface import query_llm
+from src.llm_model import LLMModel
 
 MODEL_NAME_ENV = os.environ.get("LLM_MODEL", "llama3.2")
 TIMEOUT = int(os.environ.get("LLM_TIMEOUT", "120"))
@@ -133,6 +134,7 @@ def spinner(stop_event):
 
 def robotPath():
     MODEL_NAME = choose_model(default_model=MODEL_NAME_ENV, timeout=TIMEOUT)
+    llm = LLMModel(MODEL_NAME, timeout=TIMEOUT)
 
     print("Do you want to use an existing path scenario or create a new one?")
     use_existing = input("Type 'existing' to use a scenario from data, or 'new' to create your own (default: existing): ").strip().lower()
@@ -143,11 +145,6 @@ def robotPath():
         path = Path.from_json_file(PATHS_FILE, index=scenario_index)
 
     print_path(path)
-
-    manual, explanations = load_background_knowledge()
-    print("Priming the LLM with robot manual, example explanations, and path context...")
-    send_context_to_llm(MODEL_NAME, TIMEOUT, path, manual, explanations)
-    print("LLM primed. You can now ask your questions.\n")
 
     conversation = []
     context_log = []
@@ -174,44 +171,20 @@ def robotPath():
         if any(word in question.lower() for word in KEYWORDS):
             context_log.append(question)
 
-        perception_json = summarize_perception_info(path)
-        memory = retrieve_contextual_memory(conversation, n=3)
-        prompt = (
-            build_explanation_prompt(path, context_log, question)
-            + "\n\n"
-            + "### Structured Perception Info:\n"
-            + perception_json
-            + "\n\n"
-            + "### Recent Conversation Memory:\n"
-            + memory
-        )
+        prompt = llm.build_full_prompt(path, context_log, question, conversation, build_explanation_prompt)
 
-        print(f"Processing your question with the LLM model '{MODEL_NAME}'. This may take a while for large models...")
+        print(f"Processing your question with the LLM model '{MODEL_NAME}' (streaming output):\n")
 
-        stop_event = threading.Event()
-        spinner_thread = threading.Thread(target=spinner, args=(stop_event,))
+        explanation_chunks = []
+        def print_stream(chunk):
+            print(chunk, end="", flush=True)
+            explanation_chunks.append(chunk)
         start_time = time.time()
-        spinner_thread.start()
-        try:
-            response = requests.post(
-                "http://localhost:11434/api/generate",
-                json={"model": MODEL_NAME, "prompt": prompt},
-                stream=True,
-                timeout=TIMEOUT
-            )
-            response.raise_for_status()
-            explanation = ""
-            for line in response.iter_lines():
-                if line:
-                    data = json.loads(line)
-                    explanation += data.get("response", "")
-        finally:
-            stop_event.set()
-            spinner_thread.join()
+        llm.ask(prompt, stream=True, print_stream_func=print_stream)
         elapsed = time.time() - start_time
         print(f"\n⏱️ Model response time: {elapsed:.2f} seconds")
 
-        print_answer(explanation)
+        explanation = "".join(explanation_chunks)
         conversation.append((question, explanation))
 
     if conversation:
