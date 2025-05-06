@@ -1,7 +1,8 @@
 from datetime import datetime
 import json
-from typing import List, Optional, Callable, Any, Dict
+from typing import List, Optional, Dict
 from typeguard import typechecked
+
 
 class PathStep:
     @typechecked
@@ -12,10 +13,12 @@ class PathStep:
         context: str = "",
         average_speed: Optional[float] = None,
         length: Optional[float] = None,
-        seasonal_info: Optional[Dict[str, str]] = None
+        seasonal_info: Optional[Dict[str, str]] = None,
     ):
         self.location: str = location
-        self.timestamp: str = timestamp if isinstance(timestamp, str) else timestamp.isoformat()
+        self.timestamp: str = (
+            timestamp if isinstance(timestamp, str) else timestamp.isoformat()
+        )
         self.context: str = context
         self.average_speed: Optional[float] = average_speed
         self.length: Optional[float] = length
@@ -32,7 +35,7 @@ class PathStep:
             d.get("context", ""),
             d.get("average_speed"),
             d.get("length"),
-            d.get("seasonal_info", {})
+            d.get("seasonal_info", {}),
         )
 
     @typechecked
@@ -43,7 +46,7 @@ class PathStep:
             "context": self.context,
             "average_speed": self.average_speed,
             "length": self.length,
-            "seasonal_info": self.seasonal_info
+            "seasonal_info": self.seasonal_info,
         }
 
     @typechecked
@@ -55,11 +58,14 @@ class PathStep:
         if self.length is not None:
             extra.append(f"length: {self.length} m")
         if self.seasonal_info:
-            seasons = ", ".join(f"{season}: {desc}" for season, desc in self.seasonal_info.items())
+            seasons = ", ".join(
+                f"{season}: {desc}" for season, desc in self.seasonal_info.items()
+            )
             extra.append(f"seasonal info: [{seasons}]")
         if extra:
             line += " [" + ", ".join(extra) + "]"
         return line
+
 
 class Path:
     @typechecked
@@ -88,5 +94,5 @@ class Path:
     def to_dict(self) -> dict:
         return {
             "description": self.description,
-            "steps": [step.to_dict() for step in self.steps]
+            "steps": [step.to_dict() for step in self.steps],
         }

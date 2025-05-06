@@ -1,15 +1,16 @@
 import requests
 import json
-from typing import List, Optional, Callable, Any
 from typeguard import typechecked
 
-def query_llm(prompt, model, timeout=120):
+
+@typechecked
+def query_llm(prompt: str, model: str, timeout=120) -> str:
     try:
         response = requests.post(
             "http://localhost:11434/api/generate",
             json={"model": model, "prompt": prompt},
             stream=True,
-            timeout=timeout
+            timeout=timeout,
         )
         response.raise_for_status()
         explanation = ""

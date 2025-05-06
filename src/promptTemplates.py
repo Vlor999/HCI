@@ -1,7 +1,11 @@
-from typing import List, Optional, Callable, Any
+from typing import List
 from typeguard import typechecked
 
-def build_explanation_prompt(path, context_log, question):
+from src.path import Path
+
+
+@typechecked
+def build_explanation_prompt(path: Path, context_log: List[str], question: str) -> str:
     context_str = ""
     if context_log:
         context_str = (

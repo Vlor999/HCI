@@ -1,10 +1,19 @@
 import os
 from datetime import datetime
-from typing import List, Optional, Callable, Any
+from typing import Tuple, Sequence
 from typeguard import typechecked
 
+from src.path import Path
+
+
 @typechecked
-def save_conversation(path, conversation, contextLog, logDir:str="log", filename:str="conversation_log.md"):
+def save_conversation(
+    path: Path,
+    conversation: Sequence[Tuple[str, str]],
+    contextLog: Sequence[str],
+    logDir: str = "log",
+    filename: str = "conversation_log.md",
+) -> None:
     os.makedirs(logDir, exist_ok=True)
     file = filename.split(".")
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")

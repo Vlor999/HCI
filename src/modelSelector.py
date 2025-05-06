@@ -1,23 +1,23 @@
 import requests
 import questionary
-import os
-from typing import List, Optional, Callable, Any
 from typeguard import typechecked
 
-def choose_model(default_model="llama3.2", timeout=120):
+
+@typechecked
+def choose_model(default_model: str = "llama3.2", timeout: int = 120) -> str:
     try:
         response = requests.get("http://localhost:11434/api/tags", timeout=timeout)
         response.raise_for_status()
         models = [m["name"] for m in response.json().get("models", [])]
         if not models:
-            print("No models available. Please ensure Ollama is running and models are installed.")
+            print(
+                "No models available. Please ensure Ollama is running and models are installed."
+            )
             return default_model
 
         choices = [f"{idx}: {model}" for idx, model in enumerate(models)]
         answer = questionary.select(
-            "Select an Ollama model to use:",
-            choices=choices,
-            default=choices[0]
+            "Select an Ollama model to use:", choices=choices, default=choices[0]
         ).ask()
 
         if answer:

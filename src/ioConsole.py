@@ -1,20 +1,35 @@
 import questionary
-from typing import List, Optional, Callable, Any
+from src.path import Path
+from typing import List, Optional
 from typeguard import typechecked
 
-def ask_question():
-    return questionary.text("Ask a question about the path (e.g., 'Is this road a good one to take?')", qmark="🤖").ask() or ""
 
-def print_path(path):
+@typechecked
+def ask_question() -> str:
+    return (
+        questionary.text(
+            "Ask a question about the path (e.g., 'Is this road a good one to take?')",
+            qmark="🤖",
+        ).ask()
+        or ""
+    )
+
+
+@typechecked
+def print_path(path: Path) -> None:
     print("\n📍 Current robot path with context:\n")
     print(path.to_prompt())
     print()
 
-def print_answer(answer: str):
+
+@typechecked
+def print_answer(answer: str) -> None:
     print("\n🤖 Robot answer:\n")
     print(answer)
 
-def select_or_edit_question(questions:str):
+
+@typechecked
+def select_or_edit_question(questions: List[str]) -> Optional[str]:
     if not questions:
         return None
     choice = questionary.select(
@@ -22,14 +37,12 @@ def select_or_edit_question(questions:str):
         choices=questions,
         use_shortcuts=True,
         use_indicator=True,
-        qmark="📝"
+        qmark="📝",
     ).ask()
     if choice is None:
         print("No question selected. Returning to main menu.")
         return None
-    new_question = questionary.text(
-        f"Edit your question (was: {choice}):",
-        default=choice,
-        qmark="✏️"
+    new_question: str = questionary.text(
+        f"Edit your question (was: {choice}):", default=choice, qmark="✏️"
     ).ask()
     return new_question
