@@ -15,9 +15,9 @@ from src.config.constants import (
 from src.core.path import Path
 from src.interface.ioConsole import ask_question, print_path, select_or_edit_question
 from src.logging.conversationLogger import save_conversation
-from src.modelSelector import choose_model
+from src.llm.modelSelector import choose_model
 from src.core.pathCreator import create_custom_path
-from src.promptTemplates import build_explanation_prompt
+from src.llm.promptTemplates import build_explanation_prompt
 from src.llm.llm_model import LLMModel
 
 
