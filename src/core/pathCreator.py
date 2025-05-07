@@ -1,5 +1,6 @@
+from src.core.path import Path, PathStep
+
 from datetime import datetime
-from src.path import Path, PathStep
 from typeguard import typechecked
 
 

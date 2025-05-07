@@ -1,19 +1,21 @@
 import unittest
 from datetime import datetime
-from src.path import Path
+from src.core.path import Path, PathStep
+import tempfile, json as pyjson
 from evaluation.evaluate_outputs import evaluate_explanation
+from src.logging.conversationLogger import save_conversation
 
-def simulate_llm_response(prompt):
+def simulate_llm_response(prompt: str) -> str:
     return f"\nPrompt sent to LLM:\n{prompt}\n---\n(Simulated LLM response would appear here)\n"
 
 class TestRobotPathExplanation(unittest.TestCase):
     def test_scenario_1(self):
         steps = [
-            {"location": "A", "timestamp": datetime(2023, 5, 1, 8, 0), "context": "Blocked by a fallen tree.", "average_speed": 0.5, "length": 100},
-            {"location": "B", "timestamp": datetime(2023, 5, 1, 8, 10), "context": "Clear, but steep slope.", "average_speed": 1.2, "length": 200},
-            {"location": "C", "timestamp": datetime(2023, 5, 1, 8, 20), "context": "Muddy, but passable.", "average_speed": 0.8, "length": 150},
+            PathStep("A", datetime(2023, 5, 1, 8, 0), "Blocked by a fallen tree.", 0.5, 100),
+            PathStep("B", datetime(2023, 5, 1, 8, 10), "Clear, but steep slope.", 1.2, 200),
+            PathStep("C", datetime(2023, 5, 1, 8, 20), "Muddy, but passable.", 0.8, 150),
         ]
-        path = Path.from_list(steps)
+        path = Path(steps)
         user_question = "Which path should I take if I want the easiest route?"
         prompt = (
             "The robot has recorded the following path with environmental context:\n"
@@ -26,11 +28,11 @@ class TestRobotPathExplanation(unittest.TestCase):
 
     def test_scenario_2(self):
         steps = [
-            {"location": "X", "timestamp": datetime(2023, 6, 10, 9, 0), "context": "Flooded area, not recommended.", "average_speed": 0.3, "length": 80},
-            {"location": "Y", "timestamp": datetime(2023, 6, 10, 9, 15), "context": "Dry and wide, easy to cross.", "average_speed": 2.0, "length": 250},
-            {"location": "Z", "timestamp": datetime(2023, 6, 10, 9, 30), "context": "Rocky, but no water.", "average_speed": 1.0, "length": 200},
+            PathStep("X", datetime(2023, 6, 10, 9, 0), "Flooded area, not recommended.", 0.3, 80),
+            PathStep("Y", datetime(2023, 6, 10, 9, 15), "Dry and wide, easy to cross.", 2.0, 250),
+            PathStep("Z", datetime(2023, 6, 10, 9, 30), "Rocky, but no water.", 1.0, 200),
         ]
-        path = Path.from_list(steps)
+        path = Path(steps)
         user_question = "I have a heavy load. Which path is safest for my equipment?"
         prompt = (
             "The robot has recorded the following path with environmental context:\n"
@@ -43,11 +45,11 @@ class TestRobotPathExplanation(unittest.TestCase):
 
     def test_scenario_3(self):
         steps = [
-            {"location": "North", "timestamp": datetime(2023, 7, 15, 14, 0), "context": "Icy, very slippery.", "average_speed": 0.6, "length": 90},
-            {"location": "East", "timestamp": datetime(2023, 7, 15, 14, 5), "context": "Dry, but longer distance.", "average_speed": 1.5, "length": 300},
-            {"location": "West", "timestamp": datetime(2023, 7, 15, 14, 10), "context": "Blocked by construction.", "average_speed": 0.0, "length": 0},
+            PathStep("North", datetime(2023, 7, 15, 14, 0), "Icy, very slippery.", 0.6, 90),
+            PathStep("East", datetime(2023, 7, 15, 14, 5), "Dry, but longer distance.", 1.5, 300),
+            PathStep("West", datetime(2023, 7, 15, 14, 10), "Blocked by construction.", 0.0, 0),
         ]
-        path = Path.from_list(steps)
+        path = Path(steps)
         user_question = "I am in a hurry but want to avoid danger. Which direction should I go?"
         prompt = (
             "The robot has recorded the following path with environmental context:\n"
@@ -66,6 +68,50 @@ class TestRobotPathExplanation(unittest.TestCase):
         self.assertGreaterEqual(result["keyword_score"], 0.75)
         self.assertEqual(result["exact_match"], 1)
         self.assertGreater(result["final_score"], 0.7)
+
+    def test_pathstep_to_dict_and_prompt(self):
+        step = PathStep("D", "2024-01-01T12:00:00", "Dry and sunny", 2.5, 300, {"summer": "perfect"})
+        d = step.to_dict()
+        self.assertEqual(d["location"], "D")
+        self.assertIn("summer", d["seasonal_info"])
+        prompt = step.to_prompt()
+        self.assertIn("Dry and sunny", prompt)
+        self.assertIn("average speed", prompt)
+
+    def test_path_add_step_and_to_dict(self):
+        path = Path()
+        step = PathStep("E", "2024-01-01T13:00:00", "Rainy", 1.0, 120)
+        path.add_step(step)
+        self.assertEqual(len(path.steps), 1)
+        d = path.to_dict()
+        self.assertIn("description", d)
+        self.assertEqual(len(d["steps"]), 1)
+
+    def test_path_from_json_file(self):
+        steps = [{
+            "location": "F",
+            "timestamp": "2024-01-01T14:00:00",
+            "context": "Windy",
+            "average_speed": 1.8,
+            "length": 180,
+            "seasonal_info": {"winter": "difficult"}
+        }]
+        scenario = {"description": "Test scenario", "steps": steps}
+        with tempfile.NamedTemporaryFile("w+", delete=False) as tf:
+            pyjson.dump([scenario], tf)
+            tf.flush()
+            path = Path.from_json_file(tf.name, index=0)
+            self.assertEqual(path.description, "Test scenario")
+            self.assertEqual(len(path.steps), 1)
+            self.assertEqual(path.steps[0].location, "F")
+
+    def test_save_conversation_to_test_log(self):
+        path = Path()
+        step = PathStep("G", "2024-01-01T15:00:00", "Test log", 1.5, 140)
+        path.add_step(step)
+        conversation = [("What is the best path?", "The best path is G.")]
+        context_log = ["fact for test log"]
+        save_conversation(path, conversation, context_log, logDir="log/tests", filename="test_conversation_log.md")
 
 if __name__ == "__main__":
     unittest.main()

@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Tuple, Sequence
 from typeguard import typechecked
 
-from src.path import Path
+from src.core.path import Path
 
 
 @typechecked

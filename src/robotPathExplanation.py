@@ -1,32 +1,24 @@
 import os
 import questionary
 import json
-
 from typing import Any
 from typeguard import typechecked
 
-from src.path import Path
-from src.ioConsole import ask_question, print_path, select_or_edit_question
-from src.conversationLogger import save_conversation
+from src.config.constants import (
+    MODEL_NAME_ENV,
+    TIMEOUT,
+    PATHS_FILE,
+    FACTS_FILE,
+    KEYWORDS,
+    LOG_CONVERSATIONS_DIR,
+)
+from src.core.path import Path
+from src.interface.ioConsole import ask_question, print_path, select_or_edit_question
+from src.logging.conversationLogger import save_conversation
 from src.modelSelector import choose_model
-from src.pathCreator import create_custom_path
+from src.core.pathCreator import create_custom_path
 from src.promptTemplates import build_explanation_prompt
-from src.llm_model import LLMModel
-
-MODEL_NAME_ENV = os.environ.get("LLM_MODEL", "llama3.2")
-TIMEOUT = int(os.environ.get("LLM_TIMEOUT", "120"))
-PATHS_FILE = "data/paths.json"
-FACTS_FILE = "data/facts.json"
-KEYWORDS = [
-    "now",
-    "update",
-    "change",
-    "fact",
-    "actually",
-    "in fact",
-    "new info",
-    "correction",
-]
+from src.llm.llm_model import LLMModel
 
 
 @typechecked
@@ -124,9 +116,11 @@ def robotPath() -> None:
             print("Exiting.")
             break
 
-        if any(word in question.lower() for word in KEYWORDS):
-            context_log.append(question)
-            save_facts(context_log)
+        for word in KEYWORDS:
+            if word in question.lower():
+                context_log.append(question)
+                save_facts(context_log)
+                break
 
         prompt = llm.build_full_prompt(
             path, context_log, question, conversation, build_explanation_prompt
@@ -147,4 +141,4 @@ def robotPath() -> None:
         conversation.append((question, explanation))
 
     if conversation:
-        save_conversation(path, conversation, context_log)
+        save_conversation(path, conversation, context_log, logDir=LOG_CONVERSATIONS_DIR)

@@ -87,3 +87,4 @@ poetry.lock
 
 .vscode/
 .history/
+.mypy_cache

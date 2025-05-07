@@ -1,8 +1,9 @@
 import json
-from src.llmInterface import query_llm
 from typing import List, Optional, Callable, Any, Tuple
 from typeguard import typechecked
 import os
+
+from src.llm.llmInterface import query_llm
 
 
 class LLMModel:

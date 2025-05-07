@@ -1,11 +1,5 @@
 # Human-Robot Communication with LLMs: Project Roadmap
 
-## ✅ Current Status
-
-You have developed a first version of a **RAG (Retrieval-Augmented Generation)** system using **Ollama** to answer questions. This provides a solid foundation for enabling natural language explanations from the robot.
-
----
-
 ## 🎯 Objective
 
 To bridge the communication gap between humans and robots by integrating a Large Language Model (LLM) into a robot system. The goal is to make the robot capable of **explaining its actions, decisions, and use of low-level perception data** in natural language to build **trust and interpretability**.
@@ -111,3 +105,5 @@ Use embedding of perception info into a prompt-friendly format (structured JSON,
 Pair with a retriever or contextual memory module if the robot needs to refer to prior actions or sensory inputs.
 
 Prioritize low-latency quantized variants for real-time interaction scenarios.
+
+

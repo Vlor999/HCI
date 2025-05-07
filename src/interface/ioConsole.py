@@ -1,7 +1,8 @@
 import questionary
-from src.path import Path
 from typing import List, Optional
 from typeguard import typechecked
+
+from src.core.path import Path, PathStep
 
 
 @typechecked
