@@ -1,11 +1,8 @@
 import questionary
-from typing import List, Optional
-from typeguard import typechecked
-
 from src.core.path import Path, PathStep
+from typing import Any, List, Optional
 
 
-@typechecked
 def ask_question() -> str:
     return (
         questionary.text(
@@ -16,20 +13,17 @@ def ask_question() -> str:
     )
 
 
-@typechecked
 def print_path(path: Path) -> None:
     print("\n📍 Current robot path with context:\n")
     print(path.to_prompt())
     print()
 
 
-@typechecked
 def print_answer(answer: str) -> None:
     print("\n🤖 Robot answer:\n")
     print(answer)
 
 
-@typechecked
 def select_or_edit_question(questions: List[str]) -> Optional[str]:
     if not questions:
         return None

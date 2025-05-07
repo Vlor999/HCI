@@ -6,7 +6,7 @@ from src.config.constants import MODEL_NAME_ENV, TIMEOUT
 app = typer.Typer(help="Human-Robot Communication CLI")
 
 
-@app.command()
+@app.command()  # type: ignore
 def explain(
     model: str = typer.Option(MODEL_NAME_ENV, "--model", "-m", help="LLM model to use"),
     timeout: int = typer.Option(
@@ -21,13 +21,12 @@ def explain(
     addfact: Optional[str] = typer.Option(
         None, "--addfact", "-f", help="Add a fact before starting"
     ),
-):
+) -> None:
     """
     Start the robot path explanation session with optional CLI overrides.
     """
     import os
 
-    # Pass CLI options to robotPath via environment variables or direct arguments
     os.environ["LLM_MODEL"] = model
     os.environ["LLM_TIMEOUT"] = str(timeout)
     if scenario is not None:

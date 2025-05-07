@@ -1,12 +1,9 @@
 import os
 from datetime import datetime
-from typing import Tuple, Sequence
-from typeguard import typechecked
-
+from typing import List, Tuple, Sequence
 from src.core.path import Path
 
 
-@typechecked
 def save_conversation(
     path: Path,
     conversation: Sequence[Tuple[str, str]],
@@ -30,7 +27,8 @@ def save_conversation(
             for fact in contextLog:
                 f.write(f"- {fact}\n")
             f.write("\n")
-        for idx, (q, a) in enumerate(conversation, 1):
+        for idx, qa in enumerate(conversation, 1):
+            q, a = qa
             f.write(f"### Q{idx}: {q}\n\n")
             f.write(f"**Answer:**\n\n{a}\n\n")
     print(f"Conversation saved to {filepath}")

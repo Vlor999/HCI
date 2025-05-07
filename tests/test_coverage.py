@@ -11,7 +11,7 @@ from src.logging.conversationLogger import save_conversation
 
 
 class TestCoverage(unittest.TestCase):
-    def test_path_class(self):
+    def test_path_class(self) -> None:
         path = Path()
         step = PathStep("Test", "2024-01-01T00:00:00", "test context", 1.0, 10)
         path.add_step(step)
@@ -21,7 +21,7 @@ class TestCoverage(unittest.TestCase):
         self.assertIsInstance(step.to_prompt(), str)
         self.assertIsInstance(path.to_dict(), dict)
 
-    def test_save_conversation(self):
+    def test_save_conversation(self) -> None:
         path = Path()
         step = PathStep("Test", "2024-01-01T00:00:00", "test context", 1.0, 10)
         path.add_step(step)
@@ -35,12 +35,12 @@ class TestCoverage(unittest.TestCase):
             filename="test_conversation_log.md",
         )
 
-    def test_io_console(self):
+    def test_io_console(self) -> None:
         path = Path()
         print_path(path)
         print_answer("Sample answer")
 
-    def test_pathstep_from_dict(self):
+    def test_pathstep_from_dict(self) -> None:
         d = {
             "location": "A",
             "timestamp": "2024-01-01T00:00:00",
@@ -56,7 +56,7 @@ class TestCoverage(unittest.TestCase):
         self.assertEqual(step.length, 10)
         self.assertIn("summer", step.seasonal_info)
 
-    def test_path_to_dict_and_prompt(self):
+    def test_path_to_dict_and_prompt(self) -> None:
         path = Path()
         step = PathStep("B", "2024-01-01T01:00:00", "ctx2", 2.0, 20)
         path.add_step(step)
@@ -66,11 +66,11 @@ class TestCoverage(unittest.TestCase):
         prompt = path.to_prompt()
         self.assertIn("B", prompt)
 
-    def test_select_or_edit_question_empty(self):
+    def test_select_or_edit_question_empty(self) -> None:
         # Should return None if questions is empty
         self.assertIsNone(select_or_edit_question([]))
 
-    def test_select_or_edit_question_cancel(self):
+    def test_select_or_edit_question_cancel(self) -> None:
         # Monkeypatch questionary.select to simulate ESC/cancel
         import questionary
 
@@ -83,7 +83,7 @@ class TestCoverage(unittest.TestCase):
         finally:
             questionary.select = original_select
 
-    def test_print_path_and_answer_types(self):
+    def test_print_path_and_answer_types(self) -> None:
         # Should not raise, even with empty path or answer
         print_path(Path())
         print_answer("")

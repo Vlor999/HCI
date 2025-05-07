@@ -1,11 +1,7 @@
-from src.core.path import Path
 from typing import List
-from typeguard import typechecked
-
 from src.core.path import Path
 
 
-@typechecked
 def build_explanation_prompt(path: Path, context_log: List[str], question: str) -> str:
     context_str = ""
     if context_log:

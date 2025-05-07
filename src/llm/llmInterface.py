@@ -1,10 +1,8 @@
-import requests
+import requests  # type: ignore
 import json
-from typeguard import typechecked
 
 
-@typechecked
-def query_llm(prompt: str, model: str, timeout=120) -> str:
+def query_llm(prompt: str, model: str, timeout: int = 120) -> str:
     try:
         response = requests.post(
             "http://localhost:11434/api/generate",

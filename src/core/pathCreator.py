@@ -1,10 +1,8 @@
 from src.core.path import Path, PathStep
 
 from datetime import datetime
-from typeguard import typechecked
 
 
-@typechecked
 def create_custom_path() -> Path:
     print(
         "\nLet's create a custom path. Enter each step's details. Leave location empty to finish."

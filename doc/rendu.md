@@ -1,6 +1,6 @@
 # My roadmap
 
-## Different steps : 
+## Different steps :
 ### How to use llms (15 april)
 
 Firstly I had to found a way to speak to an [llm localy](https://semaphore.io/blog/local-llm) and it appeared that the easiest way was to do it thanks to [ollama](https://ollama.com/). But It may be more efficient to use also [Llama.cpp](https://github.com/ggml-org/llama.cpp) which may be a futur optimization. For now i will only use a simple styff with ollama.

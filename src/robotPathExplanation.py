@@ -22,7 +22,6 @@ from src.llm.llm_model import LLMModel
 from src.llm.modelSelector import choose_model
 
 
-@typechecked
 def load_saved_facts() -> Any:
     try:
         with open(FACTS_FILE, "r") as f:
@@ -31,14 +30,12 @@ def load_saved_facts() -> Any:
         return []
 
 
-@typechecked
 def save_facts(facts: list[str]) -> None:
     os.makedirs(os.path.dirname(FACTS_FILE), exist_ok=True)
     with open(FACTS_FILE, "w") as f:
         json.dump(facts, f, indent=2)
 
 
-@typechecked
 def choose_path_scenario() -> int:
     try:
         with open(PATHS_FILE, "r") as f:
@@ -60,7 +57,6 @@ def choose_path_scenario() -> int:
         return 0
 
 
-@typechecked
 def robotPath() -> None:
     model_name = os.environ.get("LLM_MODEL", MODEL_NAME_ENV)
     timeout = int(os.environ.get("LLM_TIMEOUT", TIMEOUT))
@@ -156,7 +152,7 @@ def robotPath() -> None:
         )
         explanation_chunks = []
 
-        def print_stream(chunk):
+        def print_stream(chunk: str) -> None:
             print(chunk, end="", flush=True)
             explanation_chunks.append(chunk)
 

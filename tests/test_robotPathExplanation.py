@@ -13,7 +13,7 @@ def simulate_llm_response(prompt: str) -> str:
 
 
 class TestRobotPathExplanation(unittest.TestCase):
-    def test_scenario_1(self):
+    def test_scenario_1(self) -> None:
         steps = [
             PathStep(
                 "A", datetime(2023, 5, 1, 8, 0), "Blocked by a fallen tree.", 0.5, 100
@@ -36,7 +36,7 @@ class TestRobotPathExplanation(unittest.TestCase):
         result = simulate_llm_response(prompt)
         self.assertIn("Prompt sent to LLM", result)
 
-    def test_scenario_2(self):
+    def test_scenario_2(self) -> None:
         steps = [
             PathStep(
                 "X",
@@ -67,7 +67,7 @@ class TestRobotPathExplanation(unittest.TestCase):
         result = simulate_llm_response(prompt)
         self.assertIn("Prompt sent to LLM", result)
 
-    def test_scenario_3(self):
+    def test_scenario_3(self) -> None:
         steps = [
             PathStep(
                 "North", datetime(2023, 7, 15, 14, 0), "Icy, very slippery.", 0.6, 90
@@ -100,7 +100,7 @@ class TestRobotPathExplanation(unittest.TestCase):
         result = simulate_llm_response(prompt)
         self.assertIn("Prompt sent to LLM", result)
 
-    def test_evaluation(self):
+    def test_evaluation(self) -> None:
         explanation = (
             "I avoided path A because it is marked as not usable due to snow in winter."
         )
@@ -113,7 +113,7 @@ class TestRobotPathExplanation(unittest.TestCase):
         self.assertEqual(result["exact_match"], 1)
         self.assertGreater(result["final_score"], 0.7)
 
-    def test_pathstep_to_dict_and_prompt(self):
+    def test_pathstep_to_dict_and_prompt(self) -> None:
         step = PathStep(
             "D", "2024-01-01T12:00:00", "Dry and sunny", 2.5, 300, {"summer": "perfect"}
         )
@@ -124,7 +124,7 @@ class TestRobotPathExplanation(unittest.TestCase):
         self.assertIn("Dry and sunny", prompt)
         self.assertIn("average speed", prompt)
 
-    def test_path_add_step_and_to_dict(self):
+    def test_path_add_step_and_to_dict(self) -> None:
         path = Path()
         step = PathStep("E", "2024-01-01T13:00:00", "Rainy", 1.0, 120)
         path.add_step(step)
@@ -133,7 +133,7 @@ class TestRobotPathExplanation(unittest.TestCase):
         self.assertIn("description", d)
         self.assertEqual(len(d["steps"]), 1)
 
-    def test_path_from_json_file(self):
+    def test_path_from_json_file(self) -> None:
         steps = [
             {
                 "location": "F",
@@ -153,7 +153,7 @@ class TestRobotPathExplanation(unittest.TestCase):
             self.assertEqual(len(path.steps), 1)
             self.assertEqual(path.steps[0].location, "F")
 
-    def test_save_conversation_to_test_log(self):
+    def test_save_conversation_to_test_log(self) -> None:
         path = Path()
         step = PathStep("G", "2024-01-01T15:00:00", "Test log", 1.5, 140)
         path.add_step(step)
@@ -167,7 +167,7 @@ class TestRobotPathExplanation(unittest.TestCase):
             filename="test_conversation_log.md",
         )
 
-    def test_main_block(self):
+    def test_main_block(self) -> None:
         module_name = "tests.test_robotPathExplanation"
         if module_name in sys.modules:
             importlib.reload(sys.modules[module_name])

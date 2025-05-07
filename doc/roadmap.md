@@ -105,5 +105,3 @@ Use embedding of perception info into a prompt-friendly format (structured JSON,
 Pair with a retriever or contextual memory module if the robot needs to refer to prior actions or sensory inputs.
 
 Prioritize low-latency quantized variants for real-time interaction scenarios.
-
-

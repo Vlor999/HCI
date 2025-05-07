@@ -1,10 +1,9 @@
-import requests
+import requests  # type: ignore
+from typing import Any
 import questionary
-from typeguard import typechecked
 
 
-@typechecked
-def choose_model(default_model: str = "llama3.2", timeout: int = 120) -> str:
+def choose_model(default_model: str = "llama3.2", timeout: int = 120) -> Any | str:
     try:
         response = requests.get("http://localhost:11434/api/tags", timeout=timeout)
         response.raise_for_status()
@@ -15,26 +14,18 @@ def choose_model(default_model: str = "llama3.2", timeout: int = 120) -> str:
             )
             return default_model
 
+        choices = [f"{idx}: {model}" for idx, model in enumerate(models)]
         answer = questionary.select(
-            "Select an Ollama model to use:",
-            choices=models,
-            default=default_model if default_model in models else models[0],
-            style=questionary.Style(
-                [
-                    ("selected", "fg:#ffffff"),
-                    ("pointer", "fg:#007acc bold"),
-                    ("question", "bold"),
-                ]
-            ),
+            "Select an Ollama model to use:", choices=choices, default=choices[0]
         ).ask()
 
         if answer:
-            questionary.print(
-                f"\nSelected model: {answer}\n", style="bold italic fg:green"
-            )
-            return answer
-        return default_model
+            idx = int(answer.split(":")[0])
+            selected_model = models[idx]
+            print(f"Selected model: {selected_model}")
+            return selected_model
 
+        return default_model
     except requests.exceptions.RequestException as e:
         print("Error retrieving models from Ollama API. Using default model.", e)
         return default_model

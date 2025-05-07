@@ -1,11 +1,9 @@
 from datetime import datetime
 import json
-from typing import List, Optional, Dict
-from typeguard import typechecked
+from typing import List, Optional, Dict, Any
 
 
 class PathStep:
-    @typechecked
     def __init__(
         self,
         location: str,
@@ -25,8 +23,7 @@ class PathStep:
         self.seasonal_info: Dict[str, str] = seasonal_info or {}
 
     @classmethod
-    @typechecked
-    def from_dict(cls, d: dict) -> "PathStep":
+    def from_dict(cls, d: Dict[str, Any]) -> "PathStep":
         location = d.get("location") or ""
         timestamp = d.get("timestamp") or ""
         return cls(
@@ -38,8 +35,7 @@ class PathStep:
             d.get("seasonal_info", {}),
         )
 
-    @typechecked
-    def to_dict(self) -> dict:
+    def to_dict(self) -> Dict[str, Any]:
         return {
             "location": self.location,
             "timestamp": self.timestamp,
@@ -49,7 +45,6 @@ class PathStep:
             "seasonal_info": self.seasonal_info,
         }
 
-    @typechecked
     def to_prompt(self) -> str:
         line: str = f"- {self.location} at {self.timestamp}: {self.context}"
         extra: List[str] = []
@@ -68,13 +63,11 @@ class PathStep:
 
 
 class Path:
-    @typechecked
     def __init__(self, steps: Optional[List[PathStep]] = None, description: str = ""):
         self.steps: List[PathStep] = steps or []
         self.description: str = description
 
     @classmethod
-    @typechecked
     def from_json_file(cls, filepath: str, index: int = 0) -> "Path":
         with open(filepath, "r") as f:
             data = json.load(f)
@@ -82,16 +75,13 @@ class Path:
         steps = [PathStep.from_dict(step) for step in scenario["steps"]]
         return cls(steps, scenario.get("description", ""))
 
-    @typechecked
     def add_step(self, step: PathStep) -> None:
         self.steps.append(step)
 
-    @typechecked
     def to_prompt(self) -> str:
         return "\n".join(step.to_prompt() for step in self.steps)
 
-    @typechecked
-    def to_dict(self) -> dict:
+    def to_dict(self) -> Dict[str, Any]:
         return {
             "description": self.description,
             "steps": [step.to_dict() for step in self.steps],

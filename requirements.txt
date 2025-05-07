@@ -7,3 +7,4 @@ mypy
 types-requests
 typer
 rich
+pre-commit

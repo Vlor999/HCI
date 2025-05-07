@@ -1,13 +1,12 @@
+import requests  # type: ignore
 import json
-from typing import List, Optional, Callable, Any, Tuple
-from typeguard import typechecked
+from typing import List, Optional, Callable, Any, Tuple, Dict
 import os
 
 from src.llm.llmInterface import query_llm
 
 
 class LLMModel:
-    @typechecked
     def __init__(
         self,
         model_name: str,
@@ -19,12 +18,13 @@ class LLMModel:
         self.model_name: str = model_name
         self.timeout: int = timeout
         self.manual: str = self._load_manual(manual_path)
-        self.explanations: List[dict] = self._load_explanations(explanations_path)
+        self.explanations: List[Dict[str, Any]] = self._load_explanations(
+            explanations_path
+        )
         self.corrections: List[Tuple[str, str, str]] = self._load_corrections(
             corrections_dir
         )
 
-    @typechecked
     def _load_manual(self, path: str) -> str:
         try:
             with open(path, "r") as f:
@@ -32,15 +32,16 @@ class LLMModel:
         except Exception:
             return ""
 
-    @typechecked
-    def _load_explanations(self, path: str) -> List[dict]:
+    def _load_explanations(self, path: str) -> List[Dict[str, Any]]:
         try:
             with open(path, "r") as f:
-                return json.load(f)
+                data = json.load(f)
+                if isinstance(data, list):
+                    return data
+                return []
         except Exception:
             return []
 
-    @typechecked
     def _load_corrections(self, corrections_dir: str) -> List[Tuple[str, str, str]]:
         """
         Returns a list of (question, llm_answer, correct_solution)
@@ -74,9 +75,8 @@ class LLMModel:
                     continue
         return corrections
 
-    @typechecked
     def summarize_perception_info(self, path: Any) -> str:
-        perception_summary: List[dict] = []
+        perception_summary: List[Dict[str, Any]] = []
         for step in path.steps:
             perception = {
                 "location": getattr(step, "location", None),
@@ -89,20 +89,20 @@ class LLMModel:
             perception_summary.append(perception)
         return json.dumps(perception_summary, indent=2)
 
-    @typechecked
-    def retrieve_contextual_memory(self, conversation: List[tuple], n: int = 3) -> str:
+    def retrieve_contextual_memory(
+        self, conversation: List[Tuple[str, str]], n: int = 3
+    ) -> str:
         if not conversation:
             return ""
         memory = conversation[-n:]
         return "\n".join(f"Q: {q}\nA: {a}" for q, a in memory)
 
-    @typechecked
     def build_full_prompt(
         self,
         path: Any,
         context_log: List[str],
         question: str,
-        conversation: Optional[List[tuple]] = None,
+        conversation: Optional[List[Tuple[str, str]]] = None,
         build_explanation_prompt: Optional[Callable[..., str]] = None,
     ) -> str:
         perception_json: str = self.summarize_perception_info(path)
@@ -132,7 +132,6 @@ class LLMModel:
         )
         return prompt
 
-    @typechecked
     def ask(
         self,
         prompt: str,
@@ -141,7 +140,6 @@ class LLMModel:
     ) -> str:
         if not stream:
             return query_llm(prompt, self.model_name, timeout=self.timeout)
-        import requests
 
         try:
             response = requests.post(
