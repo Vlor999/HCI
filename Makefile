@@ -8,7 +8,7 @@ install: venv
 	.venv/bin/pip install -r requirements.txt
 
 format:
-	.venv/bin/black src/
+	.venv/bin/black --diff src/ tests/ evaluation/
 
 ollama:
 	@echo "Starting Ollama server in the background (if not already running)..."
@@ -30,7 +30,6 @@ test:
 	.venv/bin/python -m unittest discover -s tests
 
 coverage:
-	.venv/bin/pip install coverage
 	.venv/bin/coverage run -m unittest discover -s tests
 	.venv/bin/coverage report -m
 	.venv/bin/coverage html
@@ -42,7 +41,6 @@ coverage:
 	@echo " * xdg-open htmlcov/index.html"
 
 mypy:
-	.venv/bin/pip install mypy types-requests
 	.venv/bin/mypy src/
 
 init:
@@ -57,6 +55,9 @@ init:
 	@echo "data/" >> .gitignore
 	@echo "log/" >> .gitignore
 	@echo "Structure initialisée."
+
+clean:
+	rm -rf .venv __pycache__ src/__pycache__ tests/__pycache__ ollama.log log/
 
 help:
 	@echo "Available targets:"
@@ -74,6 +75,3 @@ help:
 	@echo "  clean      - Remove the virtual environment, cache files, logs, and output markdown in log/."
 	@echo ""
 	@echo "The final output markdown file is saved in the log/ directory."
-
-clean:
-	rm -rf .venv __pycache__ src/__pycache__ tests/__pycache__ ollama.log log/

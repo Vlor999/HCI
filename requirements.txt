@@ -5,3 +5,5 @@ coverage
 typeguard
 mypy
 types-requests
+typer
+rich

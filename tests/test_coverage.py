@@ -1,7 +1,14 @@
 import unittest
 from src.core.path import Path, PathStep
-from src.interface.ioConsole import ask_question, print_path, print_answer, select_or_edit_question
+from src.config.constants import LOG_TESTS_DIR
+from src.interface.ioConsole import (
+    ask_question,
+    print_path,
+    print_answer,
+    select_or_edit_question,
+)
 from src.logging.conversationLogger import save_conversation
+
 
 class TestCoverage(unittest.TestCase):
     def test_path_class(self):
@@ -20,7 +27,13 @@ class TestCoverage(unittest.TestCase):
         path.add_step(step)
         conversation = [("What is the best path?", "The best path is Test.")]
         context_log = ["now the path is dry"]
-        save_conversation(path, conversation, context_log, logDir="log/tests", filename="test_conversation_log.md")
+        save_conversation(
+            path,
+            conversation,
+            context_log,
+            logDir=LOG_TESTS_DIR,
+            filename="test_conversation_log.md",
+        )
 
     def test_io_console(self):
         path = Path()
@@ -34,7 +47,7 @@ class TestCoverage(unittest.TestCase):
             "context": "ctx",
             "average_speed": 1.0,
             "length": 10,
-            "seasonal_info": {"summer": "ok"}
+            "seasonal_info": {"summer": "ok"},
         }
         step = PathStep.from_dict(d)
         self.assertEqual(step.location, "A")
@@ -52,6 +65,29 @@ class TestCoverage(unittest.TestCase):
         self.assertIn("steps", d)
         prompt = path.to_prompt()
         self.assertIn("B", prompt)
+
+    def test_select_or_edit_question_empty(self):
+        # Should return None if questions is empty
+        self.assertIsNone(select_or_edit_question([]))
+
+    def test_select_or_edit_question_cancel(self):
+        # Monkeypatch questionary.select to simulate ESC/cancel
+        import questionary
+
+        original_select = questionary.select
+        questionary.select = lambda *args, **kwargs: type(
+            "FakeSelect", (), {"ask": staticmethod(lambda: None)}
+        )()
+        try:
+            self.assertIsNone(select_or_edit_question(["Q1", "Q2"]))
+        finally:
+            questionary.select = original_select
+
+    def test_print_path_and_answer_types(self):
+        # Should not raise, even with empty path or answer
+        print_path(Path())
+        print_answer("")
+
 
 if __name__ == "__main__":
     unittest.main()
