@@ -21,9 +21,7 @@ class TestRobotPathExplanation(unittest.TestCase):
             PathStep(
                 "B", datetime(2023, 5, 1, 8, 10), "Clear, but steep slope.", 1.2, 200
             ),
-            PathStep(
-                "C", datetime(2023, 5, 1, 8, 20), "Muddy, but passable.", 0.8, 150
-            ),
+            PathStep("C", datetime(2023, 5, 1, 8, 20), "Muddy, but passable.", 0.8, 150),
         ]
         path = Path(steps)
         user_question = "Which path should I take if I want the easiest route?"
@@ -52,9 +50,7 @@ class TestRobotPathExplanation(unittest.TestCase):
                 2.0,
                 250,
             ),
-            PathStep(
-                "Z", datetime(2023, 6, 10, 9, 30), "Rocky, but no water.", 1.0, 200
-            ),
+            PathStep("Z", datetime(2023, 6, 10, 9, 30), "Rocky, but no water.", 1.0, 200),
         ]
         path = Path(steps)
         user_question = "I have a heavy load. Which path is safest for my equipment?"

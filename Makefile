@@ -43,6 +43,9 @@ coverage:
 mypy:
 	.venv/bin/mypy src/
 
+pre-commit-check:
+	.venv/bin/pre-commit run --all-files
+
 init:
 	mkdir -p src tests doc data log
 	touch requirements.txt
@@ -71,6 +74,7 @@ help:
 	@echo "  test       - Run all unittests in the tests/ directory."
 	@echo "  coverage   - Run coverage analysis on the tests."
 	@echo "  mypy       - Run mypy static type checks on the src/ directory."
+	@echo "  pre-commit-check - Run all pre-commit hooks (format, mypy, etc.) on all files."
 	@echo "  init       - Initialize the project structure and create a .gitignore file."
 	@echo "  clean      - Remove the virtual environment, cache files, logs, and output markdown in log/."
 	@echo ""
