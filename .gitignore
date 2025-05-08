@@ -2,6 +2,7 @@
 
 data/
 log/
+chroma_db/
 
 # Virtual environment
 .venv/

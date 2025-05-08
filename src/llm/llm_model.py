@@ -4,6 +4,7 @@ from typing import List, Optional, Callable, Any, Tuple, Dict
 import os
 
 from src.llm.llmInterface import query_llm
+from src.llm.vectorStore import ChromaVectorStore
 
 
 class LLMModel:
@@ -24,6 +25,54 @@ class LLMModel:
         self.corrections: List[Tuple[str, str, str]] = self._load_corrections(
             corrections_dir
         )
+        self.vector_store = ChromaVectorStore()
+        self._vectorize_all_questions()
+
+    def _vectorize_all_questions(self) -> None:
+        all_questions = [ex["input"] for ex in self.explanations if "input" in ex]
+        all_questions += [q for q, _, _ in self.corrections]
+        if all_questions:
+            self.vector_store.add_questions(all_questions)
+
+    def _get_mtime(self, path: str) -> float:
+        try:
+            return os.path.getmtime(path)
+        except Exception:
+            return 0.0
+
+    def _get_dir_mtime(self, dir_path: str) -> float:
+        latest = 0.0
+        if not os.path.isdir(dir_path):
+            return latest
+        for fname in os.listdir(dir_path):
+            fpath = os.path.join(dir_path, fname)
+            if os.path.isfile(fpath):
+                latest = max(latest, self._get_mtime(fpath))
+        return latest
+
+    def _data_mtime(self) -> float:
+        mtimes = [
+            self._get_mtime("data/explanations/sample_explanations.json"),
+            self._get_dir_mtime("data/corrections"),
+            self._get_mtime("data/documents/sample_manual.txt"),
+        ]
+        return max(mtimes)
+
+    def reload_data_if_needed(self) -> None:
+        """Reload and re-vectorize if any data file has changed."""
+        current_mtime = self._data_mtime()
+        if not hasattr(self, "_last_data_mtime") or current_mtime > getattr(
+            self, "_last_data_mtime", 0
+        ):
+            self.reload_data()
+            self._last_data_mtime = current_mtime
+
+    def reload_data(self) -> None:
+        self.explanations = self._load_explanations(
+            "data/explanations/sample_explanations.json"
+        )
+        self.corrections = self._load_corrections("data/corrections")
+        self._vectorize_all_questions()
 
     def _load_manual(self, path: str) -> str:
         try:
@@ -105,6 +154,7 @@ class LLMModel:
         conversation: Optional[List[Tuple[str, str]]] = None,
         build_explanation_prompt: Optional[Callable[..., str]] = None,
     ) -> str:
+        self.reload_data_if_needed()
         perception_json: str = self.summarize_perception_info(path)
         memory: str = self.retrieve_contextual_memory(conversation or [], n=3)
         corrections_str = ""
@@ -115,6 +165,12 @@ class LLMModel:
                     f"Q: {q}\nLLM Answer: {llm_ans}\nCorrect Solution: {corr}"
                     for q, llm_ans, corr in self.corrections
                 )
+            )
+        similar_qs = self.vector_store.query(question, n_results=3)
+        similar_str = ""
+        if similar_qs:
+            similar_str = "\n\n# Similar previous questions:\n" + "\n".join(
+                f"- {q} (score: {score:.3f})" for q, score in similar_qs
             )
         prompt: str = (
             (
@@ -129,6 +185,7 @@ class LLMModel:
             + "### Recent Conversation Memory:\n"
             + memory
             + corrections_str
+            + similar_str
         )
         return prompt
 
