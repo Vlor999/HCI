@@ -8,5 +8,3 @@ types-requests
 typer
 rich
 pre-commit
-chromadb
-sentence-transformers

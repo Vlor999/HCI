@@ -4,7 +4,6 @@ from typing import List, Optional, Callable, Any, Tuple, Dict
 import os
 
 from src.llm.llmInterface import query_llm
-from src.llm.vectorStore import ChromaVectorStore
 
 
 class LLMModel:
@@ -18,23 +17,15 @@ class LLMModel:
     ):
         self.model_name: str = model_name
         self.timeout: int = timeout
-        self.manual: str = self._load_manual(manual_path)
-        self.explanations: List[Dict[str, Any]] = self._load_explanations(
+        self.manual: str = self.load_manual(manual_path)
+        self.explanations: List[Dict[str, Any]] = self.load_explanations(
             explanations_path
         )
-        self.corrections: List[Tuple[str, str, str]] = self._load_corrections(
+        self.corrections: List[Tuple[str, str, str]] = self.load_corrections(
             corrections_dir
         )
-        self.vector_store = ChromaVectorStore()
-        self._vectorize_all_questions()
 
-    def _vectorize_all_questions(self) -> None:
-        all_questions = [ex["input"] for ex in self.explanations if "input" in ex]
-        all_questions += [q for q, _, _ in self.corrections]
-        if all_questions:
-            self.vector_store.add_questions(all_questions)
-
-    def _get_mtime(self, path: str) -> float:
+    def getTime(self, path: str) -> float:
         try:
             return os.path.getmtime(path)
         except Exception:
@@ -47,41 +38,25 @@ class LLMModel:
         for fname in os.listdir(dir_path):
             fpath = os.path.join(dir_path, fname)
             if os.path.isfile(fpath):
-                latest = max(latest, self._get_mtime(fpath))
+                latest = max(latest, self.getTime(fpath))
         return latest
 
-    def _data_mtime(self) -> float:
+    def dataTime(self) -> float:
         mtimes = [
-            self._get_mtime("data/explanations/sample_explanations.json"),
+            self.getTime("data/explanations/sample_explanations.json"),
             self._get_dir_mtime("data/corrections"),
-            self._get_mtime("data/documents/sample_manual.txt"),
+            self.getTime("data/documents/sample_manual.txt"),
         ]
         return max(mtimes)
 
-    def reload_data_if_needed(self) -> None:
-        """Reload and re-vectorize if any data file has changed."""
-        current_mtime = self._data_mtime()
-        if not hasattr(self, "_last_data_mtime") or current_mtime > getattr(
-            self, "_last_data_mtime", 0
-        ):
-            self.reload_data()
-            self._last_data_mtime = current_mtime
-
-    def reload_data(self) -> None:
-        self.explanations = self._load_explanations(
-            "data/explanations/sample_explanations.json"
-        )
-        self.corrections = self._load_corrections("data/corrections")
-        self._vectorize_all_questions()
-
-    def _load_manual(self, path: str) -> str:
+    def load_manual(self, path: str) -> str:
         try:
             with open(path, "r") as f:
                 return f.read()
         except Exception:
             return ""
 
-    def _load_explanations(self, path: str) -> List[Dict[str, Any]]:
+    def load_explanations(self, path: str) -> List[Dict[str, Any]]:
         try:
             with open(path, "r") as f:
                 data = json.load(f)
@@ -91,7 +66,7 @@ class LLMModel:
         except Exception:
             return []
 
-    def _load_corrections(self, corrections_dir: str) -> List[Tuple[str, str, str]]:
+    def load_corrections(self, corrections_dir: str) -> List[Tuple[str, str, str]]:
         """
         Returns a list of (question, llm_answer, correct_solution)
         """
@@ -154,7 +129,6 @@ class LLMModel:
         conversation: Optional[List[Tuple[str, str]]] = None,
         build_explanation_prompt: Optional[Callable[..., str]] = None,
     ) -> str:
-        self.reload_data_if_needed()
         perception_json: str = self.summarize_perception_info(path)
         memory: str = self.retrieve_contextual_memory(conversation or [], n=3)
         corrections_str = ""
@@ -166,12 +140,7 @@ class LLMModel:
                     for q, llm_ans, corr in self.corrections
                 )
             )
-        similar_qs = self.vector_store.query(question, n_results=3)
         similar_str = ""
-        if similar_qs:
-            similar_str = "\n\n# Similar previous questions:\n" + "\n".join(
-                f"- {q} (score: {score:.3f})" for q, score in similar_qs
-            )
         prompt: str = (
             (
                 build_explanation_prompt(path, context_log, question)

@@ -99,7 +99,7 @@ def robotPath() -> None:
     while True:
         if conversation:
             action = select(
-                "Choose an action:",
+                "\nChoose an action:",
                 choices=[
                     "Ask a new question",
                     "Edit a previous question (history)",
