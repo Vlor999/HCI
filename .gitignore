@@ -3,7 +3,7 @@
 data/
 log/
 chroma_db/
-out/
+**/out/
 
 # Virtual environment
 .venv/

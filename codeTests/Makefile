@@ -6,10 +6,13 @@ OUT = out
 
 all: run
 
+creation:
+	mkdir -p $(OUT)
+
 compile: $(SRC)
 	$(CC) $(CXXFLAGS) $< -o $(OUT)/$(FILE)
 
-run: compile
+run: creation compile
 	./$(OUT)/$(FILE)
 
 clean:
