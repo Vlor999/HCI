@@ -2,7 +2,6 @@ import os
 from questionary import select, text
 import json
 from typing import Any
-from typeguard import typechecked
 
 from src.config.constants import (
     MODEL_NAME_ENV,
@@ -18,7 +17,7 @@ from src.logging.conversationLogger import save_conversation
 from src.llm.modelSelector import choose_model
 from src.core.pathCreator import create_custom_path
 from src.llm.promptTemplates import build_explanation_prompt
-from src.llm.llm_model import LLMModel
+from src.llm.llmModel import LLMModel
 from src.llm.modelSelector import choose_model
 
 

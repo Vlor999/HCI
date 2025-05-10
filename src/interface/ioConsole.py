@@ -1,11 +1,12 @@
-import questionary
-from src.core.path import Path, PathStep
+from questionary import text, select
+from src.core.path import Path
 from typing import Any, List, Optional
+import os  # Added to check for interactive environment
 
 
 def ask_question() -> str:
     return (
-        questionary.text(
+        text(
             "Ask a question about the path (e.g., 'Is this road a good one to take?')",
             qmark="🤖",
         ).ask()
@@ -25,9 +26,14 @@ def print_answer(answer: str) -> None:
 
 
 def select_or_edit_question(questions: List[str]) -> Optional[str]:
+    # Check if the environment is interactive
+    if not os.isatty(0):  # Non-interactive environment
+        print("Non-interactive environment detected. Returning None.")
+        return None
+
     if not questions:
         return None
-    choice = questionary.select(
+    choice = select(
         "Select a previous question to edit (ESC to cancel):",
         choices=questions,
         use_shortcuts=True,
@@ -37,7 +43,7 @@ def select_or_edit_question(questions: List[str]) -> Optional[str]:
     if choice is None:
         print("No question selected. Returning to main menu.")
         return None
-    new_question: str = questionary.text(
+    new_question: str = text(
         f"Edit your question (was: {choice}):", default=choice, qmark="✏️"
     ).ask()
     return new_question

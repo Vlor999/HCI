@@ -1,10 +1,11 @@
-import requests  # type: ignore
-import json
+from requests import post
+from json import loads
+from typing import Any
 
 
 def query_llm(prompt: str, model: str, timeout: int = 120) -> str:
     try:
-        response = requests.post(
+        response = post(
             "http://localhost:11434/api/generate",
             json={"model": model, "prompt": prompt},
             stream=True,
@@ -14,7 +15,7 @@ def query_llm(prompt: str, model: str, timeout: int = 120) -> str:
         explanation = ""
         for line in response.iter_lines():
             if line:
-                data = json.loads(line)
+                data: Any = loads(line)
                 explanation += data.get("response", "")
         return explanation
     except Exception as e:

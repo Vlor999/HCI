@@ -1,11 +1,12 @@
-import requests  # type: ignore
+import os
+from requests import get, exceptions
 from typing import Any
-import questionary
+from questionary import select
 
 
 def choose_model(default_model: str = "llama3.2", timeout: int = 120) -> Any | str:
     try:
-        response = requests.get("http://localhost:11434/api/tags", timeout=timeout)
+        response = get("http://localhost:11434/api/tags", timeout=timeout)
         response.raise_for_status()
         models = [m["name"] for m in response.json().get("models", [])]
         if not models:
@@ -14,8 +15,12 @@ def choose_model(default_model: str = "llama3.2", timeout: int = 120) -> Any | s
             )
             return default_model
 
+        if not os.isatty(0):
+            print("Non-interactive environment detected. Using default model.")
+            return default_model
+
         choices = [f"{idx}: {model}" for idx, model in enumerate(models)]
-        answer = questionary.select(
+        answer = select(
             "Select an Ollama model to use:", choices=choices, default=choices[0]
         ).ask()
 
@@ -26,7 +31,7 @@ def choose_model(default_model: str = "llama3.2", timeout: int = 120) -> Any | s
             return selected_model
 
         return default_model
-    except requests.exceptions.RequestException as e:
+    except exceptions.RequestException as e:
         print("Error retrieving models from Ollama API. Using default model.", e)
         return default_model
     except Exception as e:

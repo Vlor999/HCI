@@ -1,5 +1,5 @@
 import sys
-from src.cli import app
+from src.cli.cli import app
 from src.robotPathExplanation import robotPath
 
 

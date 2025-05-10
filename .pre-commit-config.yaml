@@ -9,6 +9,8 @@ repos:
     rev: v1.15.0
     hooks:
       - id: mypy
+        additional_dependencies:
+          - types-requests
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0

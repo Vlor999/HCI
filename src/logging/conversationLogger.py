@@ -1,6 +1,6 @@
 import os
 from datetime import datetime
-from typing import List, Tuple, Sequence
+from typing import Tuple, Sequence
 from src.core.path import Path
 
 
@@ -27,8 +27,8 @@ def save_conversation(
             for fact in contextLog:
                 f.write(f"- {fact}\n")
             f.write("\n")
-        for idx, qa in enumerate(conversation, 1):
+        for pos, qa in enumerate(conversation, 1):
             q, a = qa
-            f.write(f"### Q{idx}: {q}\n\n")
+            f.write(f"### Q{pos}: {q}\n\n")
             f.write(f"**Answer:**\n\n{a}\n\n")
     print(f"Conversation saved to {filepath}")

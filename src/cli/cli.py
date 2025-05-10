@@ -1,24 +1,23 @@
-import typer
-from typing import Optional
+from typer import Option, Typer
+from os import environ
+from typing import Optional, Callable, TypeVar
 from src.robotPathExplanation import robotPath
 from src.config.constants import MODEL_NAME_ENV, TIMEOUT
 
-app = typer.Typer(help="Human-Robot Communication CLI")
+app = Typer(help="Human-Robot Communication CLI")
 
 
 @app.command()  # type: ignore
 def explain(
-    model: str = typer.Option(MODEL_NAME_ENV, "--model", "-m", help="LLM model to use"),
-    timeout: int = typer.Option(
-        TIMEOUT, "--timeout", "-t", help="Timeout for LLM requests"
-    ),
-    scenario: Optional[int] = typer.Option(
+    model: str = Option(MODEL_NAME_ENV, "--model", "-m", help="LLM model to use"),
+    timeout: int = Option(TIMEOUT, "--timeout", "-t", help="Timeout for LLM requests"),
+    scenario: Optional[int] = Option(
         None, "--scenario", "-s", help="Scenario index to use"
     ),
-    custom: bool = typer.Option(
+    custom: bool = Option(
         False, "--custom", "-c", help="Create a custom path interactively"
     ),
-    addfact: Optional[str] = typer.Option(
+    addfact: Optional[str] = Option(
         None, "--addfact", "-f", help="Add a fact before starting"
     ),
 ) -> None:

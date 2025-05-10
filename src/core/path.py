@@ -1,5 +1,5 @@
 from datetime import datetime
-import json
+from json import load
 from typing import List, Optional, Dict, Any
 
 
@@ -70,7 +70,7 @@ class Path:
     @classmethod
     def from_json_file(cls, filepath: str, index: int = 0) -> "Path":
         with open(filepath, "r") as f:
-            data = json.load(f)
+            data = load(f)
         scenario = data[index]
         steps = [PathStep.from_dict(step) for step in scenario["steps"]]
         return cls(steps, scenario.get("description", ""))

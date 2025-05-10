@@ -1,4 +1,4 @@
-import requests  # type: ignore
+import requests
 import json
 from typing import List, Optional, Callable, Any, Tuple, Dict
 import os

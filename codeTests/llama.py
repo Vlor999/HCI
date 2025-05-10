@@ -1,6 +1,6 @@
 #! /usr/bin/env python3
 
-import requests  # type: ignore
+import requests
 import json
 from time import time
 
