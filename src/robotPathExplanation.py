@@ -44,7 +44,7 @@ def choose_path_scenario() -> int:
             f"{idx}: {scenario.get('description', f'Scenario {idx+1}')}"
             for idx, scenario in enumerate(scenarios)
         ]
-        answer = select(
+        answer: str = select(
             "Select a path scenario to use:", choices=choices, default=choices[0]
         ).ask()
         if answer:

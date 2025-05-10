@@ -4,6 +4,7 @@ from typing import List, Optional, Callable, Any, Tuple, Dict
 import os
 
 from src.llm.llmInterface import query_llm
+from src.config.constants import EXPLANATIONS_FILE, MANUAL_FILE, CORRECTIONS_DIR
 
 
 class LLMModel:
@@ -11,9 +12,9 @@ class LLMModel:
         self,
         model_name: str,
         timeout: int = 120,
-        manual_path: str = "data/documents/sample_manual.txt",
-        explanations_path: str = "data/explanations/sample_explanations.json",
-        corrections_dir: str = "data/corrections",
+        manual_path: str = MANUAL_FILE,
+        explanations_path: str = EXPLANATIONS_FILE,
+        corrections_dir: str = CORRECTIONS_DIR,
     ):
         self.model_name: str = model_name
         self.timeout: int = timeout
@@ -43,9 +44,9 @@ class LLMModel:
 
     def dataTime(self) -> float:
         mtimes = [
-            self.getTime("data/explanations/sample_explanations.json"),
-            self._get_dir_mtime("data/corrections"),
-            self.getTime("data/documents/sample_manual.txt"),
+            self.getTime(EXPLANATIONS_FILE),
+            self._get_dir_mtime(CORRECTIONS_DIR),
+            self.getTime(MANUAL_FILE),
         ]
         return max(mtimes)
 
@@ -67,44 +68,43 @@ class LLMModel:
             return []
 
     def load_corrections(self, corrections_dir: str) -> List[Tuple[str, str, str]]:
-        """
-        Returns a list of (question, llm_answer, correct_solution)
-        """
         corrections: List[Tuple[str, str, str]] = []
         if not os.path.isdir(corrections_dir):
             return corrections
-        for fname in os.listdir(corrections_dir):
-            if fname.endswith(".md"):
-                fpath = os.path.join(corrections_dir, fname)
+        for file in os.listdir(corrections_dir):
+            if file.endswith(".md"):
+                filepath = os.path.join(corrections_dir, file)
                 try:
-                    with open(fpath, "r") as f:
+                    with open(filepath, "r") as f:
                         lines = f.readlines()
-                    question, llm_answer, correct_solution = None, None, None
+                    question, llmAnswer, correct_solution = None, None, None
                     for idx, line in enumerate(lines):
                         if line.strip().startswith("### Q"):
                             question = line.strip().split(":", 1)[-1].strip()
                         if line.strip().startswith("**Answer:**"):
-                            llm_answer_lines = []
+                            llmAnswerLines = []
                             for l in lines[idx + 1 :]:
                                 if l.strip().startswith("###"):
                                     break
-                                llm_answer_lines.append(l)
-                            llm_answer = "".join(llm_answer_lines).strip()
+                                llmAnswerLines.append(l)
+                            llmAnswer = "".join(llmAnswerLines).strip()
                         if line.strip().lower().startswith("### correct solution"):
                             correct_solution = "".join(lines[idx + 2 :]).strip()
-                        if question and llm_answer and correct_solution:
-                            corrections.append((question, llm_answer, correct_solution))
-                            question, llm_answer, correct_solution = None, None, None
+                        if question and llmAnswer and correct_solution:
+                            corrections.append((question, llmAnswer, correct_solution))
+                            question, llmAnswer, correct_solution = None, None, None
                 except Exception:
                     continue
         return corrections
 
-    def summarize_perception_info(self, path: Any) -> str:
+    def summarizeInfo(self, path: Any) -> str:
         perception_summary: List[Dict[str, Any]] = []
         for step in path.steps:
             perception = {
                 "location": getattr(step, "location", None),
-                "timestamp": getattr(step, "timestamp", None),
+                "last_passage": getattr(
+                    step, "timestamp", None
+                ),  # Too much issues about the timestamp meaning
                 "context": getattr(step, "context", None),
                 "average_speed": getattr(step, "average_speed", None),
                 "length": getattr(step, "length", None),
@@ -113,7 +113,7 @@ class LLMModel:
             perception_summary.append(perception)
         return json.dumps(perception_summary, indent=2)
 
-    def retrieve_contextual_memory(
+    def retrieveContextualMemory(
         self, conversation: List[Tuple[str, str]], n: int = 3
     ) -> str:
         if not conversation:
@@ -129,12 +129,13 @@ class LLMModel:
         conversation: Optional[List[Tuple[str, str]]] = None,
         build_explanation_prompt: Optional[Callable[..., str]] = None,
     ) -> str:
-        perception_json: str = self.summarize_perception_info(path)
-        memory: str = self.retrieve_contextual_memory(conversation or [], n=3)
+        perception_json: str = self.summarizeInfo(path)
+        memory: str = self.retrieveContextualMemory(conversation or [], n=3)
         corrections_str = ""
         if self.corrections:
             corrections_str = (
                 "\n\n# Previous Questions, LLM Answers, and Corrections:\n"
+                + "Do not take that as informations about the roads or what to answer but just to know how to format your answers.\n"
                 + "\n".join(
                     f"Q: {q}\nLLM Answer: {llm_ans}\nCorrect Solution: {corr}"
                     for q, llm_ans, corr in self.corrections

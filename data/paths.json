@@ -1,0 +1,80 @@
+[
+  {
+    "steps": [
+      {
+        "location": "A",
+        "timestamp": "2023-01-01T10:00:00",
+        "context": "There was a big stone and lots of mud.",
+        "average_speed": 1.2,
+        "length": 120
+      },
+      {
+        "location": "B",
+        "timestamp": "2023-01-01T10:30:00",
+        "context": "Clear path, but a small puddle near the entrance.",
+        "average_speed": 2.5,
+        "length": 300
+      },
+      {
+        "location": "C",
+        "timestamp": "2023-01-01T11:00:00",
+        "context": "Narrow passage, no obstacles.",
+        "average_speed": 2.0,
+        "length": 180
+      }
+    ],
+    "description": "Default scenario"
+  },
+  {
+    "steps": [
+      {
+        "location": "X",
+        "timestamp": "2023-06-10T09:00:00",
+        "context": "Flooded area, not recommended.",
+        "average_speed": 0.5,
+        "length": 80
+      },
+      {
+        "location": "Y",
+        "timestamp": "2023-06-10T09:15:00",
+        "context": "Dry and wide, easy to cross.",
+        "average_speed": 3.0,
+        "length": 250
+      },
+      {
+        "location": "Z",
+        "timestamp": "2023-06-10T09:30:00",
+        "context": "Rocky, but no water.",
+        "average_speed": 1.8,
+        "length": 200
+      }
+    ],
+    "description": "Heavy load scenario"
+  },
+  {
+    "steps": [
+        {
+            "location": "P",
+            "timestamp": "2023-12-01T08:00:00",
+            "context": "Snowy path, slippery in some areas.",
+            "average_speed": 0.8,
+            "length": 100
+        },
+        {
+            "location": "Q",
+            "timestamp": "2023-12-01T08:45:00",
+            "context": "Icy patches, but manageable with caution.",
+            "average_speed": 1.5,
+            "length": 150
+        },
+        {
+            "location": "R",
+            "timestamp": "2023-12-01T09:30:00",
+            "context": "Clear and flat, no obstacles.",
+            "average_speed": 2.8,
+            "length": 300
+        }
+    ],
+    "description": "Winter scenario"
+  }
+]

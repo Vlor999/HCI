@@ -16,3 +16,7 @@ KEYWORDS: Final[List[str]] = [
     "new info",
     "correction",
 ]
+
+EXPLANATIONS_FILE = "data/explanations/sample_explanations.json"
+MANUAL_FILE = "data/documents/sample_manual.txt"
+CORRECTIONS_DIR = "data/corrections"

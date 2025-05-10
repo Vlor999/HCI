@@ -1,7 +1,7 @@
 from questionary import text, select
 from src.core.path import Path
 from typing import Any, List, Optional
-import os  # Added to check for interactive environment
+import os
 
 
 def ask_question() -> str:
@@ -26,8 +26,7 @@ def print_answer(answer: str) -> None:
 
 
 def select_or_edit_question(questions: List[str]) -> Optional[str]:
-    # Check if the environment is interactive
-    if not os.isatty(0):  # Non-interactive environment
+    if not os.isatty(0):
         print("Non-interactive environment detected. Returning None.")
         return None
 

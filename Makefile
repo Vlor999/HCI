@@ -4,8 +4,8 @@ venv:
 	@test -d .venv || python3 -m venv .venv
 
 install: venv
-	.venv/bin/pip install --upgrade pip
-	.venv/bin/pip install -r requirements.txt
+	.venv/bin/pip install --upgrade --quiet pip
+	.venv/bin/pip install --quiet -r requirements.txt
 
 format:
 	.venv/bin/black --diff src/ tests/ evaluation/
@@ -60,7 +60,7 @@ init:
 	@echo "Structure initialisée."
 
 clean:
-	rm -rf .venv __pycache__ src/__pycache__ tests/__pycache__ ollama.log log/
+	rm -rf .venv .coverage .pytest_cache __pycache__ src/**/__pycache__ src/__pycache__ tests/__pycache__ ollama.log log/
 
 help:
 	@echo "Available targets:"
