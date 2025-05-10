@@ -3,82 +3,103 @@
 #include <curl/curl.h>
 #include <regex>
 #include <sstream>
+#include <chrono>
+#include <nlohmann/json.hpp>
 
+using json = nlohmann::json;
 using namespace std;
 
-size_t WriteCallback(void* contents, size_t size, size_t nmemb, std::string* userp) {
-    userp->append((char*)contents, size * nmemb);
+size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* userp) {
+    string chunk((char*)contents, size * nmemb);
+    ostringstream* fullBuffer = static_cast<ostringstream*>(userp);
+
+    istringstream stream(chunk);
+    string line;
+
+    while (getline(stream, line)) {
+        if (line.empty()) continue;
+
+        try {
+            json j = json::parse(line);
+
+            if (j.contains("response")) {
+                cout << j["response"].get<string>() << flush;
+            }
+
+            (*fullBuffer) << line << "\n";
+        } catch (const json::parse_error& e) {
+            cerr << "\n[JSON parse error] " << e.what() << "\n";
+        }
+    }
+
     return size * nmemb;
 }
 
-
-std::string query_llm(const std::string& prompt, const std::string& model, int timeout = 120) {
+void query_llm(const string& prompt, const string& model, int timeout = 120) {
     CURL* curl;
     CURLcode res;
-    std::string readBuffer;
+    ostringstream fullResponse;
 
     curl = curl_easy_init();
     if (curl) {
-        std::string url = "http://localhost:11434/api/generate";
-        std::string requestBody = "{\"model\":\"" + model + "\",\"prompt\":\"" + prompt + "\"}";
+        string url = "http://localhost:11434/api/generate";
+        string requestBody = "{\"model\":\"" + model + "\",\"prompt\":\"" + prompt + "\",\"stream\":true}";
 
-        struct curl_slist* headers = NULL;
+        struct curl_slist* headers = nullptr;
         headers = curl_slist_append(headers, "Content-Type: application/json");
 
         curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
         curl_easy_setopt(curl, CURLOPT_POSTFIELDS, requestBody.c_str());
         curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &fullResponse);
         curl_easy_setopt(curl, CURLOPT_TIMEOUT, timeout);
+        curl_easy_setopt(curl, CURLOPT_VERBOSE, 0L);  // Set to 1L for debug
 
         res = curl_easy_perform(curl);
         if (res != CURLE_OK) {
-            std::cerr << "curl_easy_perform() failed: " << curl_easy_strerror(res) << std::endl;
+            cerr << "curl_easy_perform() failed: " << curl_easy_strerror(res) << endl;
         }
 
         curl_easy_cleanup(curl);
-    }
 
-    std::ostringstream fullResponse;
-    std::istringstream stream(readBuffer);
-    std::string line;
-    bool done = false;
+        // Post-processing full JSON lines to extract final stats
+        istringstream stream(fullResponse.str());
+        string line;
+        json lastJson;
 
-    while (std::getline(stream, line)) {
-        if (line.find("\"response\":") != std::string::npos) {
-            size_t start = line.find("\"response\":") + 10;
-            size_t newStart = line.find("\"", start) + 1;
-            size_t end = line.find("\"", newStart);
-            if (end != string::npos) {
-                fullResponse << line.substr(newStart, end - newStart);
-            } else {
-                fullResponse << line.substr(newStart);
+        while (getline(stream, line)) {
+            try {
+                lastJson = json::parse(line);
+                if (lastJson.contains("done") && lastJson["done"] == true) {
+                    break;
+                }
+            } catch (...) {
+                continue;
             }
         }
 
-        if (line.find("\"done\":true") != std::string::npos) {
-            done = true;
-            break;
+        if (!lastJson.empty()) {
+            cout << "\n\n--- Ollama Stats ---" << endl;
+            if (lastJson.contains("total_duration"))
+                cout << "Total duration: " << lastJson["total_duration"] << " ns" << endl;
+            if (lastJson.contains("load_duration"))
+                cout << "Load duration: " << lastJson["load_duration"] << " ns" << endl;
+            if (lastJson.contains("eval_duration"))
+                cout << "Eval duration: " << lastJson["eval_duration"] << " ns" << endl;
+            if (lastJson.contains("prompt_eval_count"))
+                cout << "Prompt tokens: " << lastJson["prompt_eval_count"] << endl;
+            if (lastJson.contains("eval_count"))
+                cout << "Generated tokens: " << lastJson["eval_count"] << endl;
         }
     }
-    return done ? fullResponse.str() : "Error: Response not completed";
 }
 
 int main() {
-    std::string question = "What's the color of the sun?";
-    std::string model = "mistral:7b-instruct-v0.3-fp16";
+    string question = "What's the color of the sun?";
+    string model = "mistral:7b-instruct-v0.3-fp16";
 
-
-    auto start = std::chrono::high_resolution_clock::now();
-    std::string response = query_llm(question, model);
-    auto end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> elapsed = end - start;
-
-    std::cout << "Execution time: " << elapsed.count() << " seconds" << std::endl;
-
-    std::cout << "Question: " << question << std::endl;
-    std::cout << "Answer: " << response << std::endl;
-
-    return 0;
+    cout << "Question: " << question << "\n\n";
+    query_llm(question, model);
+    return EXIT_SUCCESS;
 }
