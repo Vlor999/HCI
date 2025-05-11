@@ -14,9 +14,7 @@ class PathStep:
         seasonal_info: Optional[Dict[str, str]] = None,
     ):
         self.location: str = location
-        self.timestamp: str = (
-            timestamp if isinstance(timestamp, str) else timestamp.isoformat()
-        )
+        self.timestamp: str = timestamp if isinstance(timestamp, str) else timestamp.isoformat()
         self.context: str = context
         self.average_speed: Optional[float] = average_speed
         self.length: Optional[float] = length
@@ -53,9 +51,7 @@ class PathStep:
         if self.length is not None:
             extra.append(f"length: {self.length} m")
         if self.seasonal_info:
-            seasons = ", ".join(
-                f"{season}: {desc}" for season, desc in self.seasonal_info.items()
-            )
+            seasons = ", ".join(f"{season}: {desc}" for season, desc in self.seasonal_info.items())
             extra.append(f"seasonal info: [{seasons}]")
         if extra:
             line += " [" + ", ".join(extra) + "]"

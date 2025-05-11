@@ -42,7 +42,5 @@ def select_or_edit_question(questions: List[str]) -> Optional[str]:
     if choice is None:
         print("No question selected. Returning to main menu.")
         return None
-    new_question: str = text(
-        f"Edit your question (was: {choice}):", default=choice, qmark="✏️"
-    ).ask()
+    new_question: str = text(f"Edit your question (was: {choice}):", default=choice, qmark="✏️").ask()
     return new_question

@@ -15,12 +15,8 @@ def simulate_llm_response(prompt: str) -> str:
 class TestRobotPathExplanation(unittest.TestCase):
     def test_scenario_1(self) -> None:
         steps = [
-            PathStep(
-                "A", datetime(2023, 5, 1, 8, 0), "Blocked by a fallen tree.", 0.5, 100
-            ),
-            PathStep(
-                "B", datetime(2023, 5, 1, 8, 10), "Clear, but steep slope.", 1.2, 200
-            ),
+            PathStep("A", datetime(2023, 5, 1, 8, 0), "Blocked by a fallen tree.", 0.5, 100),
+            PathStep("B", datetime(2023, 5, 1, 8, 10), "Clear, but steep slope.", 1.2, 200),
             PathStep("C", datetime(2023, 5, 1, 8, 20), "Muddy, but passable.", 0.8, 150),
         ]
         path = Path(steps)
@@ -65,9 +61,7 @@ class TestRobotPathExplanation(unittest.TestCase):
 
     def test_scenario_3(self) -> None:
         steps = [
-            PathStep(
-                "North", datetime(2023, 7, 15, 14, 0), "Icy, very slippery.", 0.6, 90
-            ),
+            PathStep("North", datetime(2023, 7, 15, 14, 0), "Icy, very slippery.", 0.6, 90),
             PathStep(
                 "East",
                 datetime(2023, 7, 15, 14, 5),
@@ -84,9 +78,7 @@ class TestRobotPathExplanation(unittest.TestCase):
             ),
         ]
         path = Path(steps)
-        user_question = (
-            "I am in a hurry but want to avoid danger. Which direction should I go?"
-        )
+        user_question = "I am in a hurry but want to avoid danger. Which direction should I go?"
         prompt = (
             "The robot has recorded the following path with environmental context:\n"
             + path.to_prompt()
@@ -97,22 +89,16 @@ class TestRobotPathExplanation(unittest.TestCase):
         self.assertIn("Prompt sent to LLM", result)
 
     def test_evaluation(self) -> None:
-        explanation = (
-            "I avoided path A because it is marked as not usable due to snow in winter."
-        )
+        explanation = "I avoided path A because it is marked as not usable due to snow in winter."
         expected_keywords = ["avoided", "not usable", "snow", "winter"]
-        expected_answer = (
-            "I avoided path A because it is marked as not usable due to snow in winter."
-        )
+        expected_answer = "I avoided path A because it is marked as not usable due to snow in winter."
         result = evaluate_explanation(explanation, expected_keywords, expected_answer)
         self.assertGreaterEqual(result["keyword_score"], 0.75)
         self.assertEqual(result["exact_match"], 1)
         self.assertGreater(result["final_score"], 0.7)
 
     def test_pathstep_to_dict_and_prompt(self) -> None:
-        step = PathStep(
-            "D", "2024-01-01T12:00:00", "Dry and sunny", 2.5, 300, {"summer": "perfect"}
-        )
+        step = PathStep("D", "2024-01-01T12:00:00", "Dry and sunny", 2.5, 300, {"summer": "perfect"})
         d = step.to_dict()
         self.assertEqual(d["location"], "D")
         self.assertIn("summer", d["seasonal_info"])

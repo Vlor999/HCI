@@ -19,12 +19,8 @@ class LLMModel:
         self.model_name: str = model_name
         self.timeout: int = timeout
         self.manual: str = self.load_manual(manual_path)
-        self.explanations: List[Dict[str, Any]] = self.load_explanations(
-            explanations_path
-        )
-        self.corrections: List[Tuple[str, str, str]] = self.load_corrections(
-            corrections_dir
-        )
+        self.explanations: List[Dict[str, Any]] = self.load_explanations(explanations_path)
+        self.corrections: List[Tuple[str, str, str]] = self.load_corrections(corrections_dir)
 
     def getTime(self, path: str) -> float:
         try:
@@ -102,9 +98,7 @@ class LLMModel:
         for step in path.steps:
             perception = {
                 "location": getattr(step, "location", None),
-                "last_passage": getattr(
-                    step, "timestamp", None
-                ),  # Too much issues about the timestamp meaning
+                "last_passage": getattr(step, "timestamp", None),  # Too much issues about the timestamp meaning
                 "context": getattr(step, "context", None),
                 "average_speed": getattr(step, "average_speed", None),
                 "length": getattr(step, "length", None),
@@ -113,9 +107,7 @@ class LLMModel:
             perception_summary.append(perception)
         return json.dumps(perception_summary, indent=2)
 
-    def retrieveContextualMemory(
-        self, conversation: List[Tuple[str, str]], n: int = 3
-    ) -> str:
+    def retrieveContextualMemory(self, conversation: List[Tuple[str, str]], n: int = 3) -> str:
         if not conversation:
             return ""
         memory = conversation[-n:]
@@ -137,25 +129,19 @@ class LLMModel:
                 "\n\n# Previous Questions, LLM Answers, and Corrections:\n"
                 + "Do not take that as informations about the roads or what to answer but just to know how to format your answers.\n"
                 + "\n".join(
-                    f"Q: {q}\nLLM Answer: {llm_ans}\nCorrect Solution: {corr}"
-                    for q, llm_ans, corr in self.corrections
+                    f"Q: {q}\nLLM Answer: {llm_ans}\nCorrect Solution: {corr}" for q, llm_ans, corr in self.corrections
                 )
             )
-        similar_str = ""
         prompt: str = (
-            (
-                build_explanation_prompt(path, context_log, question)
-                if build_explanation_prompt
-                else ""
-            )
+            (build_explanation_prompt(path, context_log, question) if build_explanation_prompt else "")
             + "\n\n"
             + "### Structured Perception Info:\n"
             + perception_json
             + "\n\n"
             + "### Recent Conversation Memory:\n"
+            + "⚠️ This part should be take as informations and are not the current question.⚠️\n"
             + memory
             + corrections_str
-            + similar_str
         )
         return prompt
 
@@ -164,7 +150,11 @@ class LLMModel:
         prompt: str,
         stream: bool = False,
         print_stream_func: Optional[Callable[[str], None]] = None,
+        writePrompt: bool = False,
     ) -> str:
+        if writePrompt:
+            with open("log/prompt.md", "w") as f:
+                f.write(prompt)
         if not stream:
             return query_llm(prompt, self.model_name, timeout=self.timeout)
 

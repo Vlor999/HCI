@@ -41,12 +41,9 @@ def choose_path_scenario() -> int:
             data = f.read()
         scenarios = eval(data) if isinstance(data, str) else data
         choices = [
-            f"{idx}: {scenario.get('description', f'Scenario {idx+1}')}"
-            for idx, scenario in enumerate(scenarios)
+            f"{idx}: {scenario.get('description', f'Scenario {idx+1}')}" for idx, scenario in enumerate(scenarios)
         ]
-        answer: str = select(
-            "Select a path scenario to use:", choices=choices, default=choices[0]
-        ).ask()
+        answer: str = select("Select a path scenario to use:", choices=choices, default=choices[0]).ask()
         if answer:
             idx = int(answer.split(":")[0])
             return idx
@@ -70,9 +67,7 @@ def robotPath() -> None:
     if not use_custom_path and scenario_index_env is None:
         print("Do you want to use an existing path scenario or create a new one?")
         use_existing = (
-            input(
-                "Type 'existing' to use a scenario from data, or 'new' to create your own (default: existing): "
-            )
+            input("Type 'existing' to use a scenario from data, or 'new' to create your own (default: existing): ")
             .strip()
             .lower()
         )
@@ -116,9 +111,7 @@ def robotPath() -> None:
                     else:
                         continue
                 case "Add a new fact (addfact)":
-                    new_fact = text(
-                        "Enter the new fact or update to save for future sessions:"
-                    ).ask()
+                    new_fact = text("Enter the new fact or update to save for future sessions:").ask()
                     if new_fact:
                         context_log.append(new_fact)
                         save_facts(context_log)
@@ -139,16 +132,16 @@ def robotPath() -> None:
         for word in KEYWORDS:
             if word in question.lower():
                 context_log.append(question)
+                print(f"----- {word} -----")
                 save_facts(context_log)
                 break
 
-        prompt = llm.build_full_prompt(
-            path, context_log, question, conversation, build_explanation_prompt
-        )
+        fake_conv: list[tuple[str, str]] = []
+        prompt = llm.build_full_prompt(path, context_log, question, fake_conv, build_explanation_prompt)
+        # I do have to found a solution to provided more infroamtions without breaking the quesitons.
+        # prompt = llm.build_full_prompt(path, context_log, question, conversation, build_explanation_prompt)
 
-        print(
-            f"Processing your question with the LLM model '{model_name}' (streaming output):\n"
-        )
+        print(f"Processing your question with the LLM model '{model_name}' (streaming output):\n")
         explanation_chunks = []
 
         def print_stream(chunk: str) -> None:

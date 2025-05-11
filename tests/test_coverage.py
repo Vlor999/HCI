@@ -67,24 +67,19 @@ class TestCoverage(unittest.TestCase):
         self.assertIn("B", prompt)
 
     def test_select_or_edit_question_empty(self) -> None:
-        # Should return None if questions is empty
         self.assertIsNone(select_or_edit_question([]))
 
     def test_select_or_edit_question_cancel(self) -> None:
-        # Monkeypatch questionary.select to simulate ESC/cancel
         import questionary
 
         original_select = questionary.select
-        questionary.select = lambda *args, **kwargs: type(
-            "FakeSelect", (), {"ask": staticmethod(lambda: None)}
-        )()
+        questionary.select = lambda *args, **kwargs: type("FakeSelect", (), {"ask": staticmethod(lambda: None)})()
         try:
             self.assertIsNone(select_or_edit_question(["Q1", "Q2"]))
         finally:
             questionary.select = original_select
 
     def test_print_path_and_answer_types(self) -> None:
-        # Should not raise, even with empty path or answer
         print_path(Path())
         print_answer("")
 

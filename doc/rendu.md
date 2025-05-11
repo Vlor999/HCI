@@ -63,6 +63,8 @@ Make a local model from ollama models look this [video](https://www.youtube.com/
 #### Issues
 1. I wanted each time an answer does not fit to tyyhe question make some corrections about that but now wich one of my model there is some over fitting : when I'm asking the fastest road I always do have the two fastest ones.
 
+2. I do have issues when I'm asking multiple questions into the same discussion due to the amount of datas that are provided and of the pormpt that is generated. I do have to handle that.
+
 ## Information :
 My computer :
 

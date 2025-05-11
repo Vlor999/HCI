@@ -11,15 +11,9 @@ app = Typer(help="Human-Robot Communication CLI")
 def explain(
     model: str = Option(MODEL_NAME_ENV, "--model", "-m", help="LLM model to use"),
     timeout: int = Option(TIMEOUT, "--timeout", "-t", help="Timeout for LLM requests"),
-    scenario: Optional[int] = Option(
-        None, "--scenario", "-s", help="Scenario index to use"
-    ),
-    custom: bool = Option(
-        False, "--custom", "-c", help="Create a custom path interactively"
-    ),
-    addfact: Optional[str] = Option(
-        None, "--addfact", "-f", help="Add a fact before starting"
-    ),
+    scenario: Optional[int] = Option(None, "--scenario", "-s", help="Scenario index to use"),
+    custom: bool = Option(False, "--custom", "-c", help="Create a custom path interactively"),
+    addfact: Optional[str] = Option(None, "--addfact", "-f", help="Add a fact before starting"),
 ) -> None:
     """
     Start the robot path explanation session with optional CLI overrides.

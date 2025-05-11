@@ -8,7 +8,7 @@ install: venv
 	.venv/bin/pip install --quiet -r requirements.txt
 
 format:
-	.venv/bin/black --diff src/ tests/ evaluation/
+	.venv/bin/black src/ tests/ evaluation/
 
 ollama:
 	@echo "Starting Ollama server in the background (if not already running)..."

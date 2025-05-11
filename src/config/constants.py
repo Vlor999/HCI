@@ -18,5 +18,5 @@ KEYWORDS: Final[List[str]] = [
 ]
 
 EXPLANATIONS_FILE = "data/explanations/sample_explanations.json"
-MANUAL_FILE = "data/documents/sample_manual.txt"
+MANUAL_FILE = "data/documents/sample_manual.md"
 CORRECTIONS_DIR = "data/corrections"

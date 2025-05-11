@@ -7,9 +7,7 @@ def evaluate_explanation(
     expected_keywords: List[str],
     expected_answer: Optional[str] = None,
 ) -> Dict[str, Any]:
-    keyword_score: float = sum(
-        1 for kw in expected_keywords if kw.lower() in explanation.lower()
-    )
+    keyword_score: float = sum(1 for kw in expected_keywords if kw.lower() in explanation.lower())
     keyword_score = keyword_score / len(expected_keywords) if expected_keywords else 0.0
 
     length: int = len(explanation.split())
@@ -38,13 +36,9 @@ def evaluate_explanation(
 
 
 if __name__ == "__main__":
-    explanation = (
-        "I avoided path A because it is marked as not usable due to snow in winter."
-    )
+    explanation = "I avoided path A because it is marked as not usable due to snow in winter."
     expected = ["avoided", "not usable", "snow", "winter"]
-    expected_answer = (
-        "I avoided path A because it is marked as not usable due to snow in winter."
-    )
+    expected_answer = "I avoided path A because it is marked as not usable due to snow in winter."
     print(
         "Evaluation result:",
         evaluate_explanation(explanation, expected, expected_answer),
