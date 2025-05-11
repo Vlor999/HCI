@@ -136,7 +136,6 @@ def robotPath() -> None:
                 save_facts(context_log)
                 break
 
-        fake_conv: list[tuple[str, str]] = []
         prompt = llm.build_full_prompt(path, context_log, question, [], build_explanation_prompt)
         # I do have to found a solution to provided more infroamtions without breaking the quesitons.
         # prompt = llm.build_full_prompt(path, context_log, question, conversation, build_explanation_prompt)
