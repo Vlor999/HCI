@@ -14,10 +14,8 @@ def explain(
     scenario: Optional[int] = Option(None, "--scenario", "-s", help="Scenario index to use"),
     custom: bool = Option(False, "--custom", "-c", help="Create a custom path interactively"),
     addfact: Optional[str] = Option(None, "--addfact", "-f", help="Add a fact before starting"),
+    previousConversations: Optional[bool] = Option(False, "--prev", "-p", help="Give previous message to the LLM"),
 ) -> None:
-    """
-    Start the robot path explanation session with optional CLI overrides.
-    """
     import os
 
     os.environ["LLM_MODEL"] = model
@@ -28,6 +26,8 @@ def explain(
         os.environ["USE_CUSTOM_PATH"] = "1"
     if addfact:
         os.environ["CLI_FACT"] = addfact
+    if previousConversations:
+        os.environ["previousConversations"] = "1"
 
     robotPath()
 

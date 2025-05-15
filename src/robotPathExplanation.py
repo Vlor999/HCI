@@ -87,6 +87,8 @@ def robotPath() -> None:
     conversation: list[tuple[str, str]] = []
     context_log: list[str] = []
 
+    convPrev = False  # To change with the cli line input or makefile and adding a prevent message.
+
     if cli_fact:
         context_log.append(cli_fact)
 
@@ -136,9 +138,8 @@ def robotPath() -> None:
                 save_facts(context_log)
                 break
 
-        prompt = llm.build_full_prompt(path, context_log, question, [], build_explanation_prompt)
-        # I do have to found a solution to provided more infroamtions without breaking the quesitons.
-        # prompt = llm.build_full_prompt(path, context_log, question, conversation, build_explanation_prompt)
+        conversation = conversation if convPrev else []
+        prompt = llm.build_full_prompt(path, context_log, question, conversation, build_explanation_prompt)
 
         print(f"Processing your question with the LLM model '{model_name}' (streaming output):\n")
         explanation_chunks = []

@@ -6,7 +6,7 @@ To bridge the communication gap between humans and robots by integrating a Large
 
 ---
 
-## 📋 Recommended Roadmap
+## 📋 Roadmap
 
 ### 1. 📚 Extend the RAG System
 
@@ -31,9 +31,9 @@ If the LLM doesn't understand specific robotic context:
 
 Start outlining a clear architecture:
 
-- **Perception Layer** → Raw sensor data (lidar, camera, etc.)
-- **Decision Layer** → Planning module or logic
-- **Explanation Layer** → RAG or LLM generating natural language
+- **Perception Layer** -> Raw sensor data (lidar, camera, etc.)
+- **Decision Layer** -> Planning module or logic
+- **Explanation Layer** -> RAG or LLM generating natural language
 
 Add interfaces and consider:
 - Latency for real-time use
@@ -49,6 +49,8 @@ Build a simple user interface to:
 
 CLI, web-based, or robot tablet interface – start simple.
 
+**Done**
+
 ### 5. 📊 Evaluation Preparation
 
 Design how you'll evaluate the system:
@@ -57,23 +59,6 @@ Design how you'll evaluate the system:
 - Log failures or incoherent outputs
 
 Plan an A/B test if you compare RAG-only vs fine-tuned LLM.
-
----
-
-## 📂 Suggested Directory Structure
-
-```
-robot-llm-project/
-├── data/
-│   ├── documents/         # Docs used in RAG
-│   └── explanations/      # Input/output training pairs
-├── models/                # Fine-tuned or custom LLMs
-├── interface/             # UI or API code
-├── evaluation/            # Evaluation scripts and results
-├── scripts/               # Helper scripts (data preprocessing, etc.)
-├── Modelfile              # Ollama custom model file
-└── README.md              # Project overview
-```
 
 ---
 
@@ -89,17 +74,26 @@ robot-llm-project/
 
 ---
 
-## Need Help?
+## TODO?
 
-You can ask ChatGPT to:
-- Generate datasets or prompts
-- Help with Hugging Face fine-tuning
-- Review code or Modelfiles
-- Guide you through evaluation study design
+- [] Generate datasets or prompts
+- [] Fine-tuning
+- [] Review code
+- [] Evaluation
+Integration with RAG
+  All these models are great for:
+  * Embedding queries and documents using a local vector store like chromadb.
+  * Responding with context-aware answers when provided retrieved passages.
+  If you're building a pipeline:
+  1. Use a sentence-transformer (like bge-small-en or all-MiniLM-L6-v2) for embeddings.
+  2. Retrieve the top relevant documents.
+  3. Pass those as context to your local LLM via Ollama's prompt.
+
+  Use RAG chunking strategy with LangChain/LlamaIndex to overcome context window limits
 
 ---
 
-Tips for Integration
+## Tips for Integration
 Use embedding of perception info into a prompt-friendly format (structured JSON, summarized text, etc.).
 
 Pair with a retriever or contextual memory module if the robot needs to refer to prior actions or sensory inputs.
