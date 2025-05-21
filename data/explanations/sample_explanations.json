@@ -1,34 +1,34 @@
 [
-  {
-    "Input": "Why is this road optimal?",
-    "Output": "This road minimizes travel time by avoiding high-risk areas and minimaze the time taken."
-  },
-  {
-    "Input": "What are the risks of taking this road ?",
-    "Output": "The path includes a narrow bridge that may cause delays during peak hours."
-  },
-  {
-    "Input": "How does the robot decide the best path?",
-    "Output": "The robot uses a combination of real-time traffic data and pre-defined rules to calculate the most efficient route."
-  },
-  {
-    "Input": "Why did the robot revisit this location?",
-    "Output": "The robot revisited this location because it detected a change in the environment, such as reduced traffic or a previously blocked road now being open."
-  },
-  {
-    "Input": "How does the robot adapt to changes in the environment?",
-    "Output": "The robot compares current conditions with past data and updates its decision-making process to account for new information, ensuring optimal navigation."
-  },
-  {
-    "Input": "What happens if the robot encounters a familiar area?",
-    "Output": "If the robot recognizes a familiar area, it recalls past decisions and evaluates whether the same choice is still valid based on the current context."
-  },
-  {
-    "Input": "How does the robot handle conflicting data from past and present?",
-    "Output": "The robot prioritizes real-time data over past decisions, ensuring that its actions are based on the most accurate and up-to-date information available."
-  },
-  {
-    "Input": "Why did you turn left?",
-    "Output": "I turned left because the lidar detected an obstacle on the right at 0.5 meters."
-  }
+    {
+        "Input": "Why is this road optimal?",
+        "Output": "This road minimizes travel time by avoiding high-risk areas and minimaze the time taken."
+    },
+    {
+        "Input": "What are the risks of taking this road ?",
+        "Output": "The path includes a narrow bridge that may cause delays during peak hours."
+    },
+    {
+        "Input": "How does the robot decide the best path?",
+        "Output": "The robot uses a combination of real-time traffic data and pre-defined rules to calculate the most efficient route."
+    },
+    {
+        "Input": "Why did the robot revisit this location?",
+        "Output": "The robot revisited this location because it detected a change in the environment, such as reduced traffic or a previously blocked road now being open."
+    },
+    {
+        "Input": "How does the robot adapt to changes in the environment?",
+        "Output": "The robot compares current conditions with past data and updates its decision-making process to account for new information, ensuring optimal navigation."
+    },
+    {
+        "Input": "What happens if the robot encounters a familiar area?",
+        "Output": "If the robot recognizes a familiar area, it recalls past decisions and evaluates whether the same choice is still valid based on the current context."
+    },
+    {
+        "Input": "How does the robot handle conflicting data from past and present?",
+        "Output": "The robot prioritizes real-time data over past decisions, ensuring that its actions are based on the most accurate and up-to-date information available."
+    },
+    {
+        "Input": "Why did you turn left?",
+        "Output": "I turned left because the lidar detected an obstacle on the right at 0.5 meters."
+    }
 ]

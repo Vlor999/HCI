@@ -1,80 +1,145 @@
 [
-  {
-    "steps": [
-      {
-        "location": "A",
-        "timestamp": "2023-01-01T10:00:00",
-        "context": "There was a big stone and lots of mud.",
-        "average_speed": 1.2,
-        "length": 120
-      },
-      {
-        "location": "B",
-        "timestamp": "2023-01-01T10:30:00",
-        "context": "Clear path, but a small puddle near the entrance.",
-        "average_speed": 2.5,
-        "length": 300
-      },
-      {
-        "location": "C",
-        "timestamp": "2023-01-01T11:00:00",
-        "context": "Narrow passage, no obstacles.",
-        "average_speed": 2.0,
-        "length": 180
-      }
-    ],
-    "description": "Default scenario"
-  },
-  {
-    "steps": [
-      {
-        "location": "X",
-        "timestamp": "2023-06-10T09:00:00",
-        "context": "Flooded area, not recommended.",
-        "average_speed": 0.5,
-        "length": 80
-      },
-      {
-        "location": "Y",
-        "timestamp": "2023-06-10T09:15:00",
-        "context": "Dry and wide, easy to cross.",
-        "average_speed": 3.0,
-        "length": 250
-      },
-      {
-        "location": "Z",
-        "timestamp": "2023-06-10T09:30:00",
-        "context": "Rocky, but no water.",
-        "average_speed": 1.8,
-        "length": 200
-      }
-    ],
-    "description": "Heavy load scenario"
-  },
-  {
-    "steps": [
-        {
-            "location": "P",
-            "timestamp": "2023-12-01T08:00:00",
-            "context": "Snowy path, slippery in some areas.",
-            "average_speed": 0.8,
-            "length": 100
-        },
-        {
-            "location": "Q",
-            "timestamp": "2023-12-01T08:45:00",
-            "context": "Icy patches, but manageable with caution.",
-            "average_speed": 1.5,
-            "length": 150
-        },
-        {
-            "location": "R",
-            "timestamp": "2023-12-01T09:30:00",
-            "context": "Clear and flat, no obstacles.",
-            "average_speed": 2.8,
-            "length": 300
-        }
-    ],
-    "description": "Winter scenario"
-  }
+    {
+        "steps": [
+            {
+                "location": "A",
+                "timestamp": "2023-01-01T10:00:00",
+                "context": "There was a big stone and lots of mud. The robot detected soft ground with poor stability, requiring reduced speed. LIDAR identified multiple obstacle avoidance maneuvers due to fallen branches.",
+                "average_speed": 1.2,
+                "length": 120,
+                "terrain_features": {
+                    "slope": "moderate",
+                    "ground_type": "muddy",
+                    "obstacle_density": "high",
+                    "vegetation": "sparse"
+                },
+                "energy_consumption": "high",
+                "ecological_impact": "low",
+                "seasonal_info": "winter conditions"
+            },
+            {
+                "location": "B",
+                "timestamp": "2023-01-01T10:30:00",
+                "context": "Clear path, but a small puddle near the entrance. The robot chose to navigate around the puddle to avoid potential sensor interference. Ground stability was good with compact soil.",
+                "average_speed": 2.5,
+                "length": 300,
+                "terrain_features": {
+                    "slope": "minimal",
+                    "ground_type": "compact soil",
+                    "obstacle_density": "low",
+                    "vegetation": "moderate"
+                },
+                "energy_consumption": "medium",
+                "ecological_impact": "minimal",
+                "seasonal_info": "post-rain conditions"
+            },
+            {
+                "location": "C",
+                "timestamp": "2023-01-01T11:00:00",
+                "context": "Narrow passage, no obstacles. The robot maintained optimal speed through this section while staying centered to avoid wall contact. Tight clearance required precise navigation.",
+                "average_speed": 2.0,
+                "length": 180,
+                "terrain_features": {
+                    "slope": "flat",
+                    "ground_type": "paved",
+                    "obstacle_density": "none",
+                    "vegetation": "none"
+                },
+                "energy_consumption": "low",
+                "ecological_impact": "none",
+                "seasonal_info": "sheltered from weather"
+            }
+        ],
+        "description": "Default scenario"
+    },
+    {
+        "steps": [
+            {
+                "location": "Y",
+                "timestamp": "2023-06-10T09:15:00",
+                "context": "Dry and wide, easy to cross. The robot utilized optimal path planning algorithms to maximize efficiency on this favorable terrain. Sensors indicated excellent traction and stability.",
+                "average_speed": 3.0,
+                "length": 250,
+                "terrain_features": {
+                    "slope": "gentle incline",
+                    "ground_type": "packed gravel",
+                    "obstacle_density": "very low",
+                    "vegetation": "trimmed grass edges"
+                },
+                "energy_consumption": "low",
+                "ecological_impact": "minimal",
+                "seasonal_info": "dry summer conditions"
+            },
+            {
+                "location": "Z",
+                "timestamp": "2023-06-10T09:30:00",
+                "context": "Rocky, but no water. The robot deployed advanced suspension systems to navigate over uneven terrain. IMU readings showed moderate vibration requiring adjusted movement patterns.",
+                "average_speed": 1.8,
+                "length": 200,
+                "terrain_features": {
+                    "slope": "uneven with 12\u00b0 variations",
+                    "ground_type": "rocky",
+                    "obstacle_density": "high",
+                    "vegetation": "sparse shrubs"
+                },
+                "energy_consumption": "high",
+                "ecological_impact": "low",
+                "seasonal_info": "stable dry conditions"
+            }
+        ],
+        "description": "Heavy load scenario"
+    },
+    {
+        "steps": [
+            {
+                "location": "P",
+                "timestamp": "2023-12-01T08:00:00",
+                "context": "Snowy path, slippery in some areas. The robot activated its winter navigation protocol, utilizing lower torque and wider turning radius. Traction control systems engaged to prevent sliding on ice patches.",
+                "average_speed": 0.8,
+                "length": 100,
+                "terrain_features": {
+                    "slope": "gentle downhill",
+                    "ground_type": "snow-covered",
+                    "obstacle_density": "low",
+                    "vegetation": "dormant"
+                },
+                "energy_consumption": "high",
+                "ecological_impact": "minimal",
+                "seasonal_info": "fresh snowfall"
+            },
+            {
+                "location": "Q",
+                "timestamp": "2023-12-01T08:45:00",
+                "context": "Icy patches, but manageable with caution. The robot identified hazardous areas using thermal imaging and selected paths with better traction. Specialized ice-detection algorithms guided movement decisions.",
+                "average_speed": 1.5,
+                "length": 150,
+                "terrain_features": {
+                    "slope": "flat with icy sections",
+                    "ground_type": "compacted snow and ice",
+                    "obstacle_density": "medium",
+                    "vegetation": "none"
+                },
+                "energy_consumption": "medium",
+                "ecological_impact": "none",
+                "seasonal_info": "freezing conditions"
+            },
+            {
+                "location": "R",
+                "timestamp": "2023-12-01T09:30:00",
+                "context": "Clear and flat, no obstacles. The robot returned to standard navigation mode after detecting heated indoor flooring. Environmental sensors registered the transition from outdoor to indoor conditions.",
+                "average_speed": 2.8,
+                "length": 300,
+                "terrain_features": {
+                    "slope": "perfectly flat",
+                    "ground_type": "heated indoor surface",
+                    "obstacle_density": "none",
+                    "vegetation": "none"
+                },
+                "energy_consumption": "low",
+                "ecological_impact": "none",
+                "seasonal_info": "indoor climate-controlled"
+            }
+        ],
+        "description": "Winter scenario"
+    }
 ]
