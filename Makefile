@@ -7,6 +7,9 @@ install: venv
 	.venv/bin/pip install --upgrade --quiet pip
 	.venv/bin/pip install --quiet -r requirements.txt
 
+freeze:
+	pip freeze > requirements.txt
+
 format:
 	.venv/bin/black src/ tests/ evaluation/
 
