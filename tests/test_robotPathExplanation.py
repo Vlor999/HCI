@@ -98,17 +98,16 @@ class TestRobotPathExplanation(unittest.TestCase):
         self.assertGreater(result["final_score"], 0.7)
 
     def test_pathstep_to_dict_and_prompt(self) -> None:
-        # Update the PathStep creation with the correct parameter order
         step = PathStep(
             location="D",
             timestamp="2024-01-01T12:00:00",
             context="Dry and sunny",
             average_speed=2.5,
             length=300,
-            terrain_features=None,  # Add terrain_features
-            energy_consumption=None,  # Add energy_consumption
-            ecological_impact=None,  # Add ecological_impact
-            seasonal_info={"summer": "perfect"},  # Now in the correct position
+            terrain_features=None,
+            energy_consumption=None,
+            ecological_impact=None,
+            seasonal_info={"summer": "perfect"},
         )
         d = step.to_dict()
         self.assertEqual(d["location"], "D")
