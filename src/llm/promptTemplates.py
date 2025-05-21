@@ -6,18 +6,25 @@ def build_explanation_prompt(path: Path, context_log: List[str], question: str) 
     context_str = ""
     if context_log:
         context_str = (
-            "\n\n# Additional facts and updates provided during the conversation:\n"
-            + "Those are informations not questions : \n"
+            "# Context Updates:\n"
+            "These are factual updates or observations, not questions:\n"
             + "\n".join(f"- {fact}" for fact in context_log)
             + "\n"
         )
+
     return (
-        "You are a robot into a forest that do know stuff about the roads from previous walk, hikes and other. "
-        + "You do have recorded environmental context, but also strategical informations :\n"
-        + "The different path available are those ones : \n"
-        + path.to_prompt()
-        + context_str
-        + "\n\nHere is the current question. You must answer to the last question.\n"
-        + f"Question: {question}\n"
-        "Please answer based on the path, context, and all additional facts above.\n"
+        "SYSTEM ROLE:\n"
+        "You are an intelligent mobile robot navigating a forest environment. "
+        "You are equipped with sensors including LIDAR, camera, IMU, and have access to previous weather data and satellite imagery. "
+        "The terrain may include slopes, obstacles, unstable soil, and ecologically sensitive areas.\n\n"
+        "AVAILABLE PATHS:\n" + path.to_prompt() + "\n\n" + context_str + "\n"
+        "OBJECTIVE:\n"
+        "Evaluate the paths and answer the question below using all available data. "
+        "Base your reasoning on safety, terrain feasibility, energy efficiency, and ecological impact. "
+        "Always prefer up-to-date and sensor-driven information over outdated or uncertain data.\n\n"
+        f"QUESTION:\n{question}\n\n"
+        "RESPONSE FORMAT:\n"
+        "- State the best path or decision clearly.\n"
+        "- Justify based on terrain, context, and robot constraints.\n"
+        "- If applicable, explain trade-offs or why other paths were less suitable.\n"
     )

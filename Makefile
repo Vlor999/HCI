@@ -60,7 +60,7 @@ init:
 	@echo "Structure initialisée."
 
 clean:
-	rm -rf .venv .coverage .pytest_cache __pycache__ src/**/__pycache__ src/__pycache__ tests/__pycache__ ollama.log log/
+	rm -rf .venv .coverage .pytest_cache __pycache__ src/**/__pycache__ src/__pycache__ tests/__pycache__ ollama.log log/ htmlcov/
 
 help:
 	@echo "Available targets:"
