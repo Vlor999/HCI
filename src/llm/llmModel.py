@@ -98,7 +98,7 @@ class LLMModel:
         for step in path.steps:
             perception = {
                 "location": getattr(step, "location", None),
-                "last_passage": getattr(step, "timestamp", None),  # Too much issues about the timestamp meaning
+                "last_passage": getattr(step, "timestamp", None),
                 "context": getattr(step, "context", None),
                 "average_speed": getattr(step, "average_speed", None),
                 "length": getattr(step, "length", None),

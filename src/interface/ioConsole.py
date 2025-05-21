@@ -1,6 +1,6 @@
 from questionary import text, select
 from src.core.path import Path
-from typing import Any, List, Optional
+from typing import List, Optional
 import os
 
 

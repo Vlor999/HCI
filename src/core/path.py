@@ -1,6 +1,6 @@
 from datetime import datetime
 from json import load
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union
 
 
 class PathStep:
@@ -11,14 +11,24 @@ class PathStep:
         context: str = "",
         average_speed: Optional[float] = None,
         length: Optional[float] = None,
-        seasonal_info: Optional[Dict[str, str]] = None,
+        terrain_features: Optional[Dict[str, str]] = None,
+        energy_consumption: Optional[str] = None,
+        ecological_impact: Optional[str] = None,
+        seasonal_info: Optional[Union[str, Dict[str, str]]] = None,
     ):
         self.location: str = location
         self.timestamp: str = timestamp if isinstance(timestamp, str) else timestamp.isoformat()
         self.context: str = context
         self.average_speed: Optional[float] = average_speed
         self.length: Optional[float] = length
-        self.seasonal_info: Dict[str, str] = seasonal_info or {}
+        self.terrain_features: Dict[str, str] = terrain_features or {}
+        self.energy_consumption: Optional[str] = energy_consumption
+        self.ecological_impact: Optional[str] = ecological_impact
+
+        if isinstance(seasonal_info, str):
+            self.seasonal_info = {"info": seasonal_info}
+        else:
+            self.seasonal_info = seasonal_info or {}
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "PathStep":
@@ -30,6 +40,9 @@ class PathStep:
             d.get("context", ""),
             d.get("average_speed"),
             d.get("length"),
+            d.get("terrain_features"),
+            d.get("energy_consumption"),
+            d.get("ecological_impact"),
             d.get("seasonal_info", {}),
         )
 
@@ -40,6 +53,9 @@ class PathStep:
             "context": self.context,
             "average_speed": self.average_speed,
             "length": self.length,
+            "terrain_features": self.terrain_features,
+            "energy_consumption": self.energy_consumption,
+            "ecological_impact": self.ecological_impact,
             "seasonal_info": self.seasonal_info,
         }
 
@@ -50,9 +66,24 @@ class PathStep:
             extra.append(f"average speed: {self.average_speed} km/h")
         if self.length is not None:
             extra.append(f"length: {self.length} m")
-        if self.seasonal_info:
-            seasons = ", ".join(f"{season}: {desc}" for season, desc in self.seasonal_info.items())
-            extra.append(f"seasonal info: [{seasons}]")
+
+        if self.terrain_features:
+            tf_parts = [f"{k}: {v}" for k, v in self.terrain_features.items()]
+            extra.append(f"terrain: [{', '.join(tf_parts)}]")
+
+        if self.energy_consumption:
+            extra.append(f"energy: {self.energy_consumption}")
+
+        if self.ecological_impact:
+            extra.append(f"eco-impact: {self.ecological_impact}")
+
+        if isinstance(self.seasonal_info, dict) and self.seasonal_info:
+            if "info" in self.seasonal_info:
+                extra.append(f"season: {self.seasonal_info['info']}")
+            else:
+                seasons = ", ".join(f"{season}: {desc}" for season, desc in self.seasonal_info.items())
+                extra.append(f"seasonal info: [{seasons}]")
+
         if extra:
             line += " [" + ", ".join(extra) + "]"
         return line
