@@ -50,7 +50,8 @@
                 "seasonal_info": "sheltered from weather"
             }
         ],
-        "description": "Default scenario"
+        "description": "Default scenario",
+        "hash_value": 1
     },
     {
         "steps": [
@@ -87,7 +88,8 @@
                 "seasonal_info": "stable dry conditions"
             }
         ],
-        "description": "Heavy load scenario"
+        "description": "Heavy load scenario",
+        "hash_value": 2
     },
     {
         "steps": [
@@ -140,6 +142,7 @@
                 "seasonal_info": "indoor climate-controlled"
             }
         ],
-        "description": "Winter scenario"
+        "description": "Winter scenario",
+        "hash_value": 3
     }
 ]

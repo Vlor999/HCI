@@ -15,6 +15,7 @@ class PathStep:
         energy_consumption: Optional[str] = None,
         ecological_impact: Optional[str] = None,
         seasonal_info: Optional[Union[str, Dict[str, str]]] = None,
+        hash_value: Optional[int] = None,
     ):
         self.location: str = location
         self.timestamp: str = timestamp if isinstance(timestamp, str) else timestamp.isoformat()
@@ -24,6 +25,7 @@ class PathStep:
         self.terrain_features: Dict[str, str] = terrain_features or {}
         self.energy_consumption: Optional[str] = energy_consumption
         self.ecological_impact: Optional[str] = ecological_impact
+        self.hash_value: Optional[int] = hash_value
 
         if isinstance(seasonal_info, str):
             self.seasonal_info = {"info": seasonal_info}
@@ -44,6 +46,7 @@ class PathStep:
             d.get("energy_consumption"),
             d.get("ecological_impact"),
             d.get("seasonal_info", {}),
+            d.get("hash_value", 0),
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -57,6 +60,7 @@ class PathStep:
             "energy_consumption": self.energy_consumption,
             "ecological_impact": self.ecological_impact,
             "seasonal_info": self.seasonal_info,
+            "hash_value": self.hash_value,
         }
 
     def to_prompt(self) -> str:
@@ -77,12 +81,15 @@ class PathStep:
         if self.ecological_impact:
             extra.append(f"eco-impact: {self.ecological_impact}")
 
-        if isinstance(self.seasonal_info, dict) and self.seasonal_info:
+        if self.seasonal_info:
             if "info" in self.seasonal_info:
                 extra.append(f"season: {self.seasonal_info['info']}")
             else:
                 seasons = ", ".join(f"{season}: {desc}" for season, desc in self.seasonal_info.items())
                 extra.append(f"seasonal info: [{seasons}]")
+
+        if self.hash_value:
+            extra.append(f"Hash : {self.hash_value}")
 
         if extra:
             line += " [" + ", ".join(extra) + "]"
@@ -90,9 +97,10 @@ class PathStep:
 
 
 class Path:
-    def __init__(self, steps: Optional[List[PathStep]] = None, description: str = ""):
+    def __init__(self, steps: Optional[List[PathStep]] = None, description: str = "", hash_value: int = 0):
         self.steps: List[PathStep] = steps or []
         self.description: str = description
+        self.hash_value: int = hash_value
 
     @classmethod
     def from_json_file(cls, filepath: str, index: int = 0) -> "Path":
@@ -100,7 +108,7 @@ class Path:
             data = load(f)
         scenario = data[index]
         steps = [PathStep.from_dict(step) for step in scenario["steps"]]
-        return cls(steps, scenario.get("description", ""))
+        return cls(steps, scenario.get("description", ""), scenario.get("hash_value"))
 
     def add_step(self, step: PathStep) -> None:
         self.steps.append(step)
@@ -111,5 +119,6 @@ class Path:
     def to_dict(self) -> Dict[str, Any]:
         return {
             "description": self.description,
+            "hash": self.hash_value,
             "steps": [step.to_dict() for step in self.steps],
         }

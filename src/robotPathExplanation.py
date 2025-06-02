@@ -7,6 +7,7 @@ from src.config.constants import (
     MODEL_NAME_ENV,
     TIMEOUT,
     PATHS_FILE,
+    FACTS_DIR,
     FACTS_FILE,
     KEYWORDS,
     LOG_CONVERSATIONS_DIR,
@@ -21,17 +22,17 @@ from src.llm.llmModel import LLMModel
 from src.llm.modelSelector import choose_model
 
 
-def load_saved_facts() -> Any:
+def load_saved_facts(hash_value: int) -> Any:
     try:
-        with open(FACTS_FILE, "r") as f:
+        with open(FACTS_DIR + "/" + FACTS_FILE + str(hash_value) + ".json", "r") as f:
             return json.load(f)
     except Exception:
         return []
 
 
-def save_facts(facts: list[str]) -> None:
-    os.makedirs(os.path.dirname(FACTS_FILE), exist_ok=True)
-    with open(FACTS_FILE, "w") as f:
+def save_facts(facts: list[str], hash_value: int) -> None:
+    os.makedirs(os.path.dirname(FACTS_DIR), exist_ok=True)
+    with open(FACTS_DIR + "/" + FACTS_FILE + str(hash_value) + ".json", "w") as f:
         json.dump(facts, f, indent=2)
 
 
@@ -39,7 +40,7 @@ def choose_path_scenario() -> int:
     try:
         with open(PATHS_FILE, "r") as f:
             data = f.read()
-        scenarios = eval(data) if isinstance(data, str) else data
+        scenarios = eval(data)
         choices = [
             f"{idx}: {scenario.get('description', f'Scenario {idx+1}')}" for idx, scenario in enumerate(scenarios)
         ]
@@ -59,6 +60,7 @@ def robotPath() -> None:
     scenario_index_env = os.environ.get("SCENARIO_INDEX")
     use_custom_path = os.environ.get("USE_CUSTOM_PATH") == "1"
     cli_fact = os.environ.get("CLI_FACT")
+    convPrev = os.environ.get("previousConversations") == "1"
 
     if not os.environ.get("LLM_MODEL"):
         model_name = choose_model(default_model=MODEL_NAME_ENV, timeout=timeout)
@@ -87,12 +89,11 @@ def robotPath() -> None:
     conversation: list[tuple[str, str]] = []
     context_log: list[str] = []
 
-    convPrev = False  # To change with the cli line input or makefile and adding a prevent message.
-
     if cli_fact:
         context_log.append(cli_fact)
 
     while True:
+        question: str = ""
         if conversation:
             action = select(
                 "\nChoose an action:",
@@ -109,23 +110,25 @@ def robotPath() -> None:
                     prev_questions = [q for q, _ in conversation]
                     edited = select_or_edit_question(prev_questions)
                     if edited:
-                        question = edited
+                        question += edited
                     else:
                         continue
                 case "Add a new fact (addfact)":
                     new_fact = text("Enter the new fact or update to save for future sessions:").ask()
                     if new_fact:
                         context_log.append(new_fact)
-                        save_facts(context_log)
+                        save_facts(context_log, path.hash_value)
                         print("Fact saved and will be used in future sessions.")
                     continue
                 case "Quit":
                     print("Exiting.")
                     break
                 case "Ask a new question":
-                    question = ask_question()
+                    question += ask_question()
+                case _:
+                    pass
         else:
-            question = ask_question()
+            question += ask_question()
 
         if not question.strip() or question.strip().lower() in {"exit", "quit"}:
             print("Exiting.")
@@ -134,15 +137,13 @@ def robotPath() -> None:
         for word in KEYWORDS:
             if word in question.lower():
                 context_log.append(question)
-                print(f"----- {word} -----")
-                save_facts(context_log)
+                save_facts(context_log, path.hash_value)
                 break
 
         conversation = conversation if convPrev else []
         prompt = llm.build_full_prompt(path, context_log, question, conversation, build_explanation_prompt)
 
-        print(f"Processing your question with the LLM model '{model_name}' (streaming output):\n")
-        explanation_chunks = []
+        explanation_chunks: list[str] = []
 
         def print_stream(chunk: str) -> None:
             print(chunk, end="", flush=True)
