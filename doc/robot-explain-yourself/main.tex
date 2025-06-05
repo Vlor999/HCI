@@ -1,0 +1,33 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[a4paper, left=2cm, right=2cm, top=3cm, bottom=2cm]{geometry}
+
+\begin{document}
+
+\title{Robot, Explain Yourself\\
+Enhancing Human-Robot Communication with Large Language Models}
+\author{Willem Adnet}
+\date{\today}
+\maketitle
+
+\begin{abstract}
+This report presents the design and implementation of a system for enhancing human-robot interaction by enabling a robot to explain its decisions, particularly those related to low-level perception data, through natural language using a Large Language Model (LLM).
+The project explores current methodologies, builds an integration framework, fine-tunes an LLM, and validates the system through user evaluations.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+\input{sections/01-introduction.tex}
+\input{sections/02-literature-review.tex}
+\input{sections/03-framework-design.tex}
+\input{sections/04-llm-customization.tex}
+\input{sections/05-hri-prototype.tex}
+\input{sections/06-evaluation.tex}
+\input{sections/07-conclusion.tex}
+
+\bibliography{bibliography}
+\bibliographystyle{plain}
+
+\end{document}

@@ -1,0 +1,30 @@
+\section{Framework Design}
+
+\subsection{Architecture Overview}
+
+The proposed framework integrates three main components:
+\begin{enumerate}
+    \item \textbf{Perception Processing Layer}: Handles (sensor data aggregation), context extraction and previous knowledge comprehension
+    \item \textbf{LLM Integration Layer}: Manages prompt generation and response processing
+    \item \textbf{Human Interface Layer}: Provides natural language interaction capabilities
+\end{enumerate}
+
+\subsection{Data Flow and Processing Pipeline}
+
+The system processes robot perception data through a structured pipeline:
+\begin{itemize}
+    \item Environmental/Weather context extraction from sensor readings
+    \item Path analysis and decision point identification
+    \item Prompt template generation with structured information
+    \item LLM query processing and response generation
+    \item Natural language explanation delivery to users
+\end{itemize}
+
+\subsection{Technical Requirements}
+
+Key technical considerations include:
+\begin{itemize}
+    \item Real-time processing capabilities for interactive use and real-time answers
+    \item Modular design for different robot platforms
+    \item Scalable architecture for various explanation types
+\end{itemize}

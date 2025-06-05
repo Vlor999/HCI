@@ -5,3 +5,12 @@ __pycache__/
 ollama.log
 data/
 log/
+bin/
+*.log
+*.fls
+*.gz
+*.blg
+*.bbl
+*.aux
+*.toc
+*.fdb_latexmk

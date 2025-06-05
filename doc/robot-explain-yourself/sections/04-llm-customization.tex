@@ -1,0 +1,41 @@
+\section{LLM Customization}
+
+\subsection{Model selection and comparison}
+
+The project evaluated multiple LLM architectures:
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{|l|l|l|}
+\hline
+\textbf{Model} & \textbf{Size} & \textbf{Performance} \\
+\hline
+Llama 3.2 & 2.0 GB & Baseline performance \\
+nous-hermes2:latest & 6.1 GB & small model that explain lightly \\
+deepseek & 8.1 GB & Good reasoning, efficient and clear\\
+qwen3:30b-a3b & 18 GB & big model that provides good answers but take some time \\
+\hline
+\end{tabular}
+\caption{LLM model comparison}
+\end{table}
+
+\subsection{Prompt engineering}
+
+Effective prompt design proved crucial for generating relevant explanations. The system uses structured prompts that include:
+\begin{itemize}
+    \item Environmental context and sensor readings
+    \item Historical path information
+    \item User questions and interaction history
+    \item Domain-specific constraints and objectives
+    \item Additional datas provided by the human or captors
+\end{itemize}
+
+\subsection{Fine-tuning Approach}
+
+The customization process involved:
+\begin{enumerate}
+    \item Dataset creation with robot-specific scenarios
+    \item Prompt template
+    \item Response quality evaluation and iteration
+    \item Integration with robot perception systems (In the future)
+\end{enumerate}

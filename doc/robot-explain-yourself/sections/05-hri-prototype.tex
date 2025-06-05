@@ -1,0 +1,42 @@
+\section{Human-Robot Interaction Prototype}
+
+\subsection{System implementation}
+
+The prototype system was implemented using Python with the following key components:
+\begin{itemize}
+    \item \textbf{Path processing module}: Handles environmental data and context extraction
+    \item \textbf{LLM interface}: Manages communication with local Ollama server
+    \item \textbf{Conversation manager}: Maintains interaction history and context
+    \item \textbf{User interface}: Provides command-line and potential interaction
+\end{itemize}
+
+\subsection{Core features}
+
+The implemented system supports:
+\begin{itemize}
+    \item Interactive questioning about robot path decisions
+    \item Real-time explanation generation
+    \item Context-aware responses based on environmental conditions
+    \item Conversation logging and history management
+    \item Multiple scenario support for testing and evaluation
+\end{itemize}
+
+\subsection{Technical architecture}
+
+The system architecture follows a modular design:
+\begin{itemize}
+    \item \texttt{robotPathExplanation.py}: Main application logic
+    \item \texttt{path.py}: Data structures for path and environmental information
+    \item \texttt{llmModel.py}: LLM integration and prompt management
+    \item \texttt{conversationLogger.py}: Interaction recording and analysis
+\end{itemize}
+
+\subsection{Usage scenarios}
+
+The prototype supports various interaction scenarios:
+\begin{enumerate}
+    \item Path selection queries (e.g., "Which path should I take if I want the easiest route?")
+    \item Safety-related questions (e.g., "I have a heavy load. Which path is safest?")
+    \item Time-constrained decisions (e.g., "I am in a hurry but want to avoid danger")
+    \item Real-time updated decision (e.g., "Which path should i took according to the new datas that I provided ?")
+\end{enumerate}
