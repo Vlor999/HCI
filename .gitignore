@@ -6,6 +6,7 @@ ollama.log
 data/
 log/
 bin/
+.mypy_cache/
 *.log
 *.fls
 *.gz
@@ -14,3 +15,4 @@ bin/
 *.aux
 *.toc
 *.fdb_latexmk
+*.out

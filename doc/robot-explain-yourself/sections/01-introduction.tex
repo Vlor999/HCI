@@ -3,11 +3,15 @@
 The integration of artificial intelligence with robotics has opened new frontiers in human-robot interaction (HRI). As robots become increasingly autonomous and deployed in complex real-world environments, the need for transparent and interpretable decision-making becomes paramount.
 This project addresses the challenge of making robotic systems more explainable by leveraging Large Language Models (LLMs) to translate low-level sensor data and perception information into natural language explanations.
 
-\subsection{Problem Statement}
+\subsection{Problem statement}
 
 Modern robots operate using complex algorithms that process vast amounts of sensor data to make navigation and behavioral decisions.
 However, these decisions often remain opaque to human users, creating a barrier to trust and effective collaboration.
 The challenge lies in bridging the gap between machine perception and human understanding.
+
+The primary goal is to develop an AI-powered robot capable of evaluating its past decisions, particularly when revisiting locations.
+For example, the robot should be able to explain: "I recognize this area—I previously visited it on [date/time] and made a certain decision."
+If the environment has changed since the last visit, the robot should update its reasoning to reflect the new context, rather than relying solely on prior experiences.
 
 \subsection{Objectives}
 

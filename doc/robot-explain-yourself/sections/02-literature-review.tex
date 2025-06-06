@@ -1,23 +1,28 @@
-\section{Literature Review}
+\section{Literature review}
 
-This literature review summarizes the current state of technologies and methodologies in human-robot communication, focusing particularly on interpretability and explainability of low-level perception information, and the associated challenges and opportunities in making robotic behavior understandable to human users.
+\subsection{Technologies and methodologies in Human-Robot Communication}
 
-\subsection{Human-Robot Communication Technologies}
+\paragraph{Dialogue management in HRI}
+The current state of dialogue management in human-robot interaction is reviewed by Lopes et al.~\cite{dialogue-hri-review}. They evaluate capabilities, methods, and challenges, and emphasize the need for structured approaches that effectively combine HRI with dialogue systems.
 
-Current approaches to human-robot communication span multiple modalities including speech, gesture, and visual interfaces.
-Recent advances in dialogue management systems have shown promise in creating more natural interactions \cite{dialogue_management_2023}.
+\paragraph{Human–robot interaction}
+An overview of human–robot interaction is provided in a community-maintained source~\cite{hri-overview}. It emphasizes intuitive communication through speech, gestures, and facial expressions, and underlines the importance of designing robots that “feel” human.
 
-\subsection{Explainable AI in Robotics}
+\subsection{Interpretability of low-level perception in robotics}
 
-The field of explainable AI (XAI) has gained significant attention, particularly in safety-critical applications.
-Trust calibration and explanation specificity have emerged as key factors in building reliable human-robot relationships \cite{trust_explainable_robots_2020}.
+\paragraph{Explainable robotic systems in scenarios}
+Puiutta and Veith~\cite{explainable-rl} discuss explainability in robotic reinforcement learning agents. They present methods for making decision probabilities interpretable to end-users.
 
-\subsection{Large Language Models in Robotics}
+\paragraph{Subsumption architecture}
+The subsumption architecture~\cite{subsumption} is an early robotics design that focuses on real-time responsiveness and intelligent behavior emerging from layered, embodied interactions.
 
-Recent work has explored the integration of LLMs with robotic systems for various tasks including instruction following, task planning, and human-robot dialogue.
-The emergence of foundation models has opened new possibilities for natural language interfaces in robotics \cite{llm_robotics_2024}.
+\subsection{Challenges and opportunities for understandable robotics}
 
-\subsection{Challenges and Opportunities}
+\paragraph{Trust in explainable robots}
+Trust calibration and explanation-specificity in robots are discussed in Wang et al.~\cite{trust-explainable}, who offer insight into designing systems that feel transparent and reliable.
 
-Key challenges include real-time processing constraints, the interpretability gap between sensor data and natural language, and the need for context-aware explanations.
-Opportunities exist in leveraging pre-trained language models and developing domain-specific fine-tuning approaches.
+\paragraph{Effects of robot explanations}
+The impact of robot explanations on user perception is further evaluated by the same authors~\cite{explanations-effect}. Their findings suggest explanations make robots seem livelier and more human-like.
+
+\paragraph{Ethical black box}
+Professor Marina Jirotka’s concept of the “ethical black box”~\cite{ethical-black-box} suggests embedding inflight recorders in robots to promote accountability and auditability of robotic decisions.

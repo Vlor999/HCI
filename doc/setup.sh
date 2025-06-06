@@ -13,9 +13,6 @@ touch figures/system-architecture.pdf
 touch figures/hri-interface.png
 touch figures/evaluation-graph.pdf
 
-touch dataset-description.txt
-touch README.md
-
 touch evaluation-report.pdf
 touch presentation.pdf
 
