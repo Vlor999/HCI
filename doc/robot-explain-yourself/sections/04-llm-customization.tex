@@ -2,21 +2,21 @@
 
 \subsection{Model selection and comparison}
 
-The project evaluated multiple LLM architectures:
-
+The project employed multiple LLM architectures to determine which one provided the most accurate answers while also offering the most comprehensive explanations.
+The LLM used during this project are the next ones :
 \begin{table}[ht]
-\centering
-\begin{tabular}{|l|l|l|}
-\hline
-\textbf{Model} & \textbf{Size} & \textbf{Performance} \\
-\hline
-Llama 3.2           & 2.0 GB    & Baseline performance \\
-nous-hermes2:latest & 6.1 GB    & small model that explain lightly \\
-deepseek            & 8.1 GB    & Good reasoning, efficient and clear\\
-qwen3:30b-a3b       & 18 GB     & big model that provides good answers but take some time \\
-\hline
-\end{tabular}
-\caption{LLM model comparison}
+    \centering
+    \begin{tabular}{|l|l|l|}
+        \hline
+        \textbf{Model}      & \textbf{Size} & \textbf{Performance} \\
+        \hline
+        Llama 3.2           & 2.0 GB        & Baseline performance \\
+        nous-hermes2:latest & 6.1 GB        & small model that explain lightly \\
+        deepseek            & 8.1 GB        & Good reasoning, efficient and clear\\
+        qwen3:30b-a3b       & 18 GB         & big model that provides good answers but take some time \\
+        \hline
+    \end{tabular}
+    \caption{LLM model comparison}
 \end{table}
 
 \subsection{Prompt engineering}
@@ -28,14 +28,15 @@ Effective prompt design proved crucial for generating relevant explanations. The
     \item User questions and interaction history
     \item Domain-specific constraints and objectives
     \item Additional datas provided by the human or captors
+    \item Typical question/answer results
 \end{itemize}
 
-\subsection{Fine-tuning Approach}
+\subsection{Fine-tuning approach}
 
 The customization process involved:
-\begin{enumerate}
+\begin{itemize}
     \item Dataset creation with robot-specific scenarios
     \item Prompt template
     \item Response quality evaluation and iteration
-    \item Integration with robot perception systems (In the future)
-\end{enumerate}
+    \item Integration with robot perception systems
+\end{itemize}

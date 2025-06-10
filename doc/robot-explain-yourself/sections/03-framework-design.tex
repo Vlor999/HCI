@@ -3,11 +3,11 @@
 \subsection{Architecture Overview}
 
 The proposed framework integrates three main components:
-\begin{enumerate}
-    \item \textbf{Perception Processing Layer}: Handles sensor data aggregation and context extraction
-    \item \textbf{LLM Integration Layer}: Manages prompt generation and response processing
-    \item \textbf{Human Interface Layer}: Provides natural language interaction capabilities
-\end{enumerate}
+\begin{itemize}
+    \item \textbf{Perception processing layer :} Handles sensor data aggregation and context extraction
+    \item \textbf{LLM integration layer :} Manages prompt generation and response processing
+    \item \textbf{Human interface layer :} Provides natural language interaction capabilities
+\end{itemize}
 
 \begin{center}
     \includegraphics[scale=0.45]{figures/Model-HCI.png}
@@ -15,100 +15,105 @@ The proposed framework integrates three main components:
 
 \subsection{Installation of the Project}
 
-The project is designed to be easily deployable on any computer with minimal setup requirements. The following prerequisites are needed:
+The project is designed to be easily deployable on any computer with minimal setup requirements.
+The following prerequisites are needed:
 
 \begin{itemize}
-    \item \textbf{Python 3.8+} (recommended: Python 3.11)
+    \item \textbf{Python 3.8+} (developed under: Python 3.11)
     \item \textbf{Ollama} - Local LLM server for model hosting
-    \item \textbf{llama3.2} model or compatible LLM model
     \item \textbf{make} (optional, for automation)
     \item \textbf{git} for repository cloning
 \end{itemize}
 
-\subsubsection{Step-by-Step Installation Process}
+\subsubsection{Step-by-Step installation process}
 
 \textbf{1. Repository cloning}
 
 The project can be obtained from the GitHub repository:
 
-\begin{verbatim}
+\begin{lstlisting}[language=bash]
     git clone https://github.com/Vlor999/HCI.git
     cd HCI
-\end{verbatim}
-
+\end{lstlisting}
 \textbf{2. Ollama installation and setup}
 
 Ollama serves as the local LLM server, providing the computational backend for natural language processing:
 
 \begin{itemize}
-    \item Download and install Ollama from \texttt{https://ollama.com/download}
+    \item Download and install Ollama from \href{https://ollama.com/download}{\texttt{https://ollama.com/download}}
     \item Start the Ollama server: \texttt{ollama serve}
     \item Pull the required model: \texttt{ollama pull llama3.2} (or any other model)
 \end{itemize}
-
 \textbf{3. Project environment setup}
 
 The project uses automated setup through make commands:
 
-\begin{verbatim}
+\begin{lstlisting}[language=bash]
     make init
     make install
-\end{verbatim}
+\end{lstlisting}
 
 This process creates the necessary directory structure and installs Python dependencies in a virtual environment.
+If you use \textbf{linux} or \textbf{macOS} with :
 
+\begin{lstlisting}[language=bash]
+    ls -al
+\end{lstlisting}
+will show a new \textbf{.venv} file wich containes all dependencies an the version of \textbf{python} we are going to use.\\
 \textbf{4. Optional code formatting}
-
 For development consistency:
 
-\begin{verbatim}
+\begin{lstlisting}[language=bash]
     make format
-\end{verbatim}
+\end{lstlisting}
 But if you also want to stay consistent with the all code you have to run the following command :
-\begin{verbatim}
+\begin{lstlisting}[language=bash]
     pre-commit install
-\end{verbatim}
-Like that for the next commit that you'll do everything will be checked before you submit it.
+\end{lstlisting}
+Like that for the next commits that you'll do everything will be checked before you submit it.
 
 \subsection{System execution}
 
-\subsubsection{Running the Application}
-
-The system can be launched using either automated make commands or direct Python execution:
-
-\begin{verbatim}
+\subsubsection{Running the application}
+The system can be launched using either automated \textbf{make} commands or direct \textbf{Python} execution:
+\begin{lstlisting}[language=bash]
     make run
-\end{verbatim}
+\end{lstlisting}
 
 or manually:
 
-\begin{verbatim}
+\begin{lstlisting}[language=bash]
     .venv/bin/python main.py
-\end{verbatim}
+\end{lstlisting}
+Obviously you can add some CLI commands and if you are into the current \textbf{env} you can simply run :
 
-Obviously you can add some CLI commands and if you are into the current env you can simply run :
 
-\begin{verbatim}
+\begin{lstlisting}[language=bash]
     python main.py
-\end{verbatim}
-
+\end{lstlisting}
 If you want to know all the commands that can be used try the help CLI argument.
+
+\begin{lstlisting}[language=bash]
+    python main.py --help
+\end{lstlisting}
 
 \subsubsection{Testing Framework}
 
 The project includes comprehensive testing capabilities:
 
-\begin{verbatim}
+\begin{lstlisting}[language=bash]
     make test
-\end{verbatim}
-
+\end{lstlisting}
 For coverage analysis with HTML reporting:
 
-\begin{verbatim}
+\begin{lstlisting}[language=bash]
     make coverage
-\end{verbatim}
-
+\end{lstlisting}
 The coverage report can be viewed by opening \texttt{htmlcov/index.html} in a web browser.
+if you use firefox you can use :
+\begin{lstlisting}[language=bash]
+    firefox htmlcov/index.html
+\end{lstlisting}
 
 \subsection{Data flow and processing pipeline}
 
@@ -126,36 +131,46 @@ The system processes robot perception data through a structured pipeline:
 
 The framework follows a modular architecture with clear separation of concerns:
 
-\begin{verbatim}
-    src/           # Source code modules
-    tests/         # Unit tests and test data
-    data/          # Example path scenarios (JSON)
-    log/           # Conversation logs (Markdown)
-    doc/           # Documentation and roadmap
-    evaluation/    # Evaluation scripts and results
-    Makefile       # Automation commands
-    requirements.txt # Python dependencies
-\end{verbatim}
+\begin{lstlisting}[language=bash]
+    project/
+    |-- data/                    # Example path scenarios
+    |   |-- documents/           # Points robots need to handle - Markdown
+    |   |-- explanations/        # Input-output guidance - Markdown
+    |   |-- facts/               # New facts for defined paths - JSON
+    |   +-- paths/               # Available path definitions - JSON
+    |-- doc/                     # Documentation
+    |-- evaluation/              # Evaluation scripts and results
+    |-- log/                     # Conversation logs
+    |   +-- conversations/       # Individual conversation files - Markdown
+    |-- src/                     # Source code modules
+    |-- tests/                   # Unit tests and test data
+    |-- LICENSE                  # Project license
+    |-- main.py                  # Main application entry point
+    |-- Makefile                 # Build automation commands
+    |-- pyproject.toml           # Environment configuration for pre-commit
+    |-- README.md                # Local setup instructions
+    +-- requirements.txt         # Python dependencies
+\end{lstlisting}
 
 \subsection{Usage workflow}
 
 The typical user interaction follows this pattern:
-\begin{enumerate}
+\begin{itemize}
     \item The system displays current robot path and environmental context
     \item Users can ask multiple questions about path decisions and conditions
     \item The LLM processes queries and generates contextual explanations
     \item Sessions are terminated with \texttt{exit} or \texttt{quit} commands
-    \item Conversation logs are automatically saved in Markdown format in the \texttt{log/} directory
-\end{enumerate}
+    \item Conversation logs are automatically saved in Markdown format in the \texttt{log/conversation} directory
+\end{itemize}
 
 \subsection{Configuration and customization}
 
 The system supports various customization options:
 
 \begin{itemize}
-    \item \textbf{Path scenarios}: Edit \texttt{data/paths.json} to add or modify navigation scenarios
-    \item \textbf{LLM models}: The model name can be changed in the source code for different LLM variants
-    \item \textbf{Logging}: Conversation logs are automatically generated and stored for analysis
+    \item \textbf{Path scenarios :} Edit \texttt{data/paths.json} to add or modify navigation scenarios
+    \item \textbf{LLM models :} The model name can be changed in the source code for different LLM variants. We can also change the temperature and all the settings of the used llm.
+    \item \textbf{Logging :} Conversation logs are automatically generated and stored for analysis
 \end{itemize}
 
 \subsection{Technical requirements}
@@ -169,5 +184,4 @@ Scalability is also essential, ensuring that the system can handle a variety of 
 
 When deploying the system, several common issues may arise. First, it is important to ensure that the Ollama server is running by verifying that the \texttt{ollama serve} command is active and that the required model has been properly pulled.
 Port conflicts can also occur, as only one Ollama server instance should be running on port 11434 at any given time. Additionally, the Python environment must be correctly set up, make sure that the virtual environment (\texttt{.venv}) is properly activated before running any Python scripts.
-Finally, confirm that the necessary large language model (LLM) is downloaded and accessible to avoid runtime errors related to model availability.
-\subsection{Integration Capabilities}
+Finally, confirm that the necessary large language model (LLM) is downloaded and accessible to avoid runtime errors related to model availability. Please also don't forget to include the paths that you are using.
