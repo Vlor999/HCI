@@ -89,7 +89,7 @@ class PathStep:
                 extra.append(f"seasonal info: [{seasons}]")
 
         if self.hash_value:
-            extra.append(f"Hash : {self.hash_value}")
+            extra.append(f"Hash: {self.hash_value}")
 
         if extra:
             line += " [" + ", ".join(extra) + "]"
