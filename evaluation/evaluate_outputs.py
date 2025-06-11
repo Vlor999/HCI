@@ -35,15 +35,15 @@ def evaluate_explanation(
     }
 
 
-if __name__ == "__main__":
-    explanation = "I avoided path A because it is marked as not usable due to snow in winter."
-    expected = ["avoided", "not usable", "snow", "winter"]
-    expected_answer = "I avoided path A because it is marked as not usable due to snow in winter."
-    print(
-        "Evaluation result:",
-        evaluate_explanation(explanation, expected, expected_answer),
-    )
-    print("No keywords:", evaluate_explanation("foo", [], None))
-    print("Short explanation:", evaluate_explanation("short", ["short"], None))
-    print("No expected answer:", evaluate_explanation("something", ["some"], None))
-    print("Exact match fail:", evaluate_explanation("foo", ["foo"], "bar"))
+# if __name__ == "__main__":
+#     explanation = "I avoided path A because it is marked as not usable due to snow in winter."
+#     expected = ["avoided", "not usable", "snow", "winter"]
+#     expected_answer = "I avoided path A because it is marked as not usable due to snow in winter."
+#     print(
+#         "Evaluation result:",
+#         evaluate_explanation(explanation, expected, expected_answer),
+#     )
+# print("No keywords:", evaluate_explanation("foo", [], None))
+# print("Short explanation:", evaluate_explanation("short", ["short"], None))
+# print("No expected answer:", evaluate_explanation("something", ["some"], None))
+# print("Exact match fail:", evaluate_explanation("foo", ["foo"], "bar"))

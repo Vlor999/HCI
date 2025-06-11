@@ -1,9 +1,10 @@
 import unittest
 from datetime import datetime
-from src.core.path import Path, PathStep
 import tempfile, json as pyjson
 import importlib
 import sys
+from typing import Any
+from src.core.path import Path, PathStep
 from evaluation.evaluate_outputs import evaluate_explanation
 from src.logging.conversationLogger import save_conversation
 
@@ -97,6 +98,45 @@ class TestRobotPathExplanation(unittest.TestCase):
         self.assertEqual(result["exact_match"], 1)
         self.assertGreater(result["final_score"], 0.7)
 
+    def test_evaluation_no_key(self) -> None:
+        explanation: str = "foo"
+        expected_keywords: list[str] = []
+        expected_answer: str = ""
+        result = evaluate_explanation(explanation, expected_keywords, expected_answer)
+        self.assertIsInstance(result, dict)
+        self.assertEqual(result["keyword_score"], 0.0)
+        self.assertEqual(result["exact_match"], 0)
+        self.assertGreaterEqual(result["final_score"], 0.0)
+
+    def test_evaluation_short_explanation(self) -> None:
+        explanation: str = "short"
+        expected_keywords: list[str] = ["short"]
+        expected_answer: str = ""
+        result = evaluate_explanation(explanation, expected_keywords, expected_answer)
+        self.assertIsInstance(result, dict)
+        self.assertGreaterEqual(result["keyword_score"], 0.75)
+        self.assertGreaterEqual(result["exact_match"], 0.0)
+        self.assertGreaterEqual(result["final_score"], 0.5)
+
+    def test_evaluation_no_expected_answer(self) -> None:
+        explanation: str = "something"
+        expected_keywords: list[str] = ["some"]
+        expected_answer: str = ""
+        result = evaluate_explanation(explanation, expected_keywords, expected_answer)
+        self.assertIsInstance(result, dict)
+        self.assertGreaterEqual(result["keyword_score"], 0.75)
+        self.assertEqual(result["exact_match"], 0)
+        self.assertGreaterEqual(result["final_score"], 0.5)
+
+    def test_evaluation_exact_match_fail(self) -> None:
+        explanation: str = "foo"
+        expected_keywords: list[str] = ["foo"]
+        expected_answer: str = "bar"
+        result = evaluate_explanation(explanation, expected_keywords, expected_answer)
+        self.assertGreaterEqual(result["keyword_score"], 0.75)
+        self.assertEqual(result["exact_match"], 0)
+        self.assertGreater(result["final_score"], 0.2)
+
     def test_pathstep_to_dict_and_prompt(self) -> None:
         step = PathStep(
             location="D",
@@ -126,7 +166,7 @@ class TestRobotPathExplanation(unittest.TestCase):
         self.assertEqual(len(d["steps"]), 1)
 
     def test_path_from_json_file(self) -> None:
-        steps = [
+        steps: list[dict[str, Any]] = [
             {
                 "location": "F",
                 "timestamp": "2024-01-01T14:00:00",
@@ -136,7 +176,7 @@ class TestRobotPathExplanation(unittest.TestCase):
                 "seasonal_info": {"winter": "difficult"},
             }
         ]
-        scenario = {"description": "Test scenario", "steps": steps}
+        scenario: dict[str, Any] = {"description": "Test scenario", "steps": steps}
         with tempfile.NamedTemporaryFile("w+", delete=False) as tf:
             pyjson.dump([scenario], tf)
             tf.flush()
