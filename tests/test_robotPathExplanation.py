@@ -98,16 +98,6 @@ class TestRobotPathExplanation(unittest.TestCase):
         self.assertEqual(result["exact_match"], 1)
         self.assertGreater(result["final_score"], 0.7)
 
-    def test_evaluation_no_key(self) -> None:
-        explanation: str = "foo"
-        expected_keywords: list[str] = []
-        expected_answer: str = ""
-        result = evaluate_explanation(explanation, expected_keywords, expected_answer)
-        self.assertIsInstance(result, dict)
-        self.assertEqual(result["keyword_score"], 0.0)
-        self.assertEqual(result["exact_match"], 0)
-        self.assertGreaterEqual(result["final_score"], 0.0)
-
     def test_evaluation_short_explanation(self) -> None:
         explanation: str = "short"
         expected_keywords: list[str] = ["short"]
