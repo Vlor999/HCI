@@ -13,6 +13,14 @@ The proposed framework integrates three main components:
     \includegraphics[scale=0.45]{figures/Model-HCI.png}
 \end{center}
 
+\subsection{framework explanations}
+The current framework is designed to take care of all the previous informations and to provide a good explanation to the user.
+To do so we firstly choose a good LLM model that can provide us with the best answers and explanations.
+The we are going to give to the robot some real-time data about the environment, the sensors and the path that it is currently following or the  availabale ones.
+The we are going to use the LLM to generate a prompt that will be used to answer the user question.
+This process is done in a loop, where the user can ask multiple questions and the robot will answer them using the LLM.
+Thanks to this way of doing the user can adapt the question to the answer given by the robot but also add some new informations about the different path that the robot can take.
+
 \subsection{Installation of the Project}
 
 The project is designed to be easily deployable on any computer with minimal setup requirements.
@@ -179,6 +187,7 @@ The framework is designed with several technical requirements in mind.
 It must support real-time processing to enable interactive use and immediate responses to user queries.
 The architecture should remain modular to facilitate adaptation across different robot platforms and allow for future extensions.
 Scalability is also essential, ensuring that the system can handle a variety of explanation types and increasing complexity as needed.
+
 
 \subsection{Troubleshooting and common issues}
 

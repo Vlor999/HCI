@@ -1,26 +1,12 @@
-# TODO
-
-1. Literature Review:
-    - [-] Current technologies and methodologies in human-robot communication.
-    - [-] Interpretability of low-level perception information in robotics.
-    - [-] Identify challenges and opportunities in making robotic actions and decisions understandable to human users.
-
-2. Integration Framework Design:
-    - [ ] Design a framework for integrating a Large Language Model with the robot.
-    - [ ] Consideration should be given to real-time processing and response generation.
-
-3. LLM Customization:
-    - [ ] Understand and generate explanations about the robot's actions, sensor data, and decision-making processes.
-
-4. Human-Robot Interaction (HRI) Prototyping:
-    - [ ] Develop a prototype system that demonstrates effective human-robot communication.
-    - [ ] The prototype should include a user interface for inputting queries and displaying the robot's explanations.
-    - [ ] Test the prototype in various scenarios to assess the system's ability to enhance human understanding of the robot's actions.
-
-5. Evaluation:
-    - [ ] Design and conduct an evaluation to assess the effectiveness and efficiency of the developed explanation system.
-    - [ ] Evaluate the system accuracy in explaining the cause of a decision.
-
+I think the thing missing compared to the original project definition would be
+5. Evaluation: Design and conduct an evaluation to assess the effectiveness and efficiency of the developed
+explanation system. Evaluate the system accuracy in explaining the cause of a decision.
 6. Project Documentation and Presentation:
-    - [ ] Document all phases of the project, including the literature review, framework design, LLM customization process, prototype development, and evaluation results.
-    - [ ] Prepare a comprehensive project report and a presentation summarizing the key findings, challenges, and future directions for enhancing human-robot communication through LLMs.
+* Document all phases of the project,
+* including the literature review,
+* framework design
+* LLM customization process
+* prototype development
+* evaluation results.
+Prepare a comprehensive project report and a presentation summarizing the key findings, challenges, and
+future directions for enhancing human-robot communication through LLMs.
