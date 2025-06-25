@@ -2,7 +2,8 @@ import os
 from typer import Option, Typer
 from typing import Optional
 from src.robotPathExplanation import robotPath
-from src.config.constants import MODEL_NAME_ENV, TIMEOUT
+from src.config.constants import MODEL_NAME_ENV, TIMEOUT, LOG_CONVERSATIONS_DIR
+from src.evaluation.evaluationRunner import EvaluationRunner
 
 app = Typer(help="Human-Robot Communication CLI")
 
@@ -31,6 +32,16 @@ def explain(
         os.environ["previousConversations"] = "1"
 
     robotPath()
+
+
+@app.command()  # type: ignore
+def evaluate(
+    log_dir: str = Option(LOG_CONVERSATIONS_DIR, "--log-dir", "-l", help="Directory containing conversation logs"),
+    output_dir: str = Option("log/evaluation", "--output-dir", "-o", help="Directory to save evaluation results"),
+    no_save: bool = Option(False, "--no-save", help="Don't save results to files"),
+) -> None:
+    runner = EvaluationRunner(log_dir=log_dir, output_dir=output_dir)
+    runner.run_evaluation(save_results=not no_save)
 
 
 if __name__ == "__main__":

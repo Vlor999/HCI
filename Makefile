@@ -2,7 +2,7 @@ TESTS = tests/*
 EVALUATIONS = evaluation/*
 VENV = .venv/bin
 
-.PHONY: run ollama start init venv install format help clean test stop-ollama coverage mypy pre-commit-check freeze
+.PHONY: run ollama start init venv install format help clean test stop-ollama coverage mypy pre-commit-check freeze evaluate
 
 venv:
 	@test -d .venv || python3 -m venv .venv
@@ -69,6 +69,12 @@ init:
 clean:
 	rm -rf .venv .coverage .pytest_cache __pycache__ src/**/__pycache__ tests/__pycache__ ollama.log log/ htmlcov/
 
+evaluate:
+	$(VENV)/python -m src.cli.cli evaluate
+
+evaluate-no-save:
+	$(VENV)/python -m src.cli.cli evaluate --no-save
+
 help:
 	@echo "Available targets:"
 	@echo "  venv               - Create a Python virtual environment if it doesn't exist."
@@ -83,6 +89,8 @@ help:
 	@echo "  coverage           - Run coverage analysis, excluding tests/ and evaluation/."
 	@echo "  mypy               - Run mypy static type checks on the src/ directory."
 	@echo "  pre-commit-check   - Run all pre-commit hooks (format, mypy, etc.) on all files."
+	@echo "  evaluate           - Run evaluation on conversation logs and save results."
+	@echo "  evaluate-no-save   - Run evaluation on conversation logs without saving results."
 	@echo "  init               - Initialize the project structure and create a .gitignore file."
 	@echo "  clean              - Remove the virtual environment, cache files, logs, and output HTML coverage."
 	@echo ""

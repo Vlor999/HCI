@@ -1,20 +1,41 @@
 \section{Evaluation}
 
-\subsection{Evaluation Methodology}
+\subsection{Evaluation methodology}
 
 Our evaluation employed a multi-pronged strategy to assess both technical performance and user experience. We used four main methodologies: automated testing, explanation quality assessment, user studies, and performance metrics analysis.
 Automated unit tests, integrated into our CI pipeline, ensured reliability across components such as input processing, reasoning algorithms, and output generation. For explanation quality, we combined keyword matching and semantic similarity metrics to evaluate clarity, relevance, and accuracy.
 User studies engaged participants in realistic tasks, providing feedback on usability and comprehension. Performance evaluation focused on response time, answer accuracy, and user satisfaction, prioritizing semantic correctness over speed.
 
-\subsection{Quantitative Results}
+\subsection{Quantitative results}
 We used keyword coverage (targeting $\geq$75\%) as a primary metric for explanation completeness. Factual accuracy was validated through expert review and knowledge base cross-checks, yielding high correctness rates across query types.
 We also evaluated consistency by testing the system with semantically similar queries. Results showed stable performance, though some variability suggested potential for improvement through additional fine-tuning.
-\subsection{Qualitative Findings}
+\subsection{Qualitative findings}
 
 Users valued clear, jargon-free explanations in natural language and appreciated responses tailored to context. Context-aware answers enhanced understanding and reduced cognitive load.
 Complex scenarios sometimes led to less focused responses, while simple cases produced consistently clear outputs. Interactive capabilities, such as follow-up questions, increased user trust and engagement.
 
-\subsection{Limitations and Challenges}
+\subsection{Answer Evaluation}
+To verify that all the expplanations are quite accurate a tool has been developed to evaluate the answers. This tool can be launch using either the Makefile of the cli command :
+\begin{lstlisting}[language=bash]
+    make evaluate
+    # or
+    make evaluate-no-save
+\end{lstlisting}
+
+or using the cli command:
+\begin{lstlisting}[language=bash]
+    python -m src.cli.cli evaluate evaluate [OPIONS]
+\end{lstlisting}
+
+to see everything that is available you can use the command:
+\begin{lstlisting}[language=bash]
+    python -m src.cli.cli evaluate --help
+\end{lstlisting}
+
+In both cases you'll have a brief summary on the console that will tell you how many answers have been evaluated and how many of them are correct. The evalution works by looking if logical keyword are used and finaly makes sense.
+You may have a summary written on the log files (if you enable it) to have more detailed information about the evaluation.
+
+\subsection{Limitations and challenges}
 
 Key limitations included high computational costs for real-time explanations and occasional over-reliance on rigid templates. Context retention weakened in long conversations, affecting coherence.
 Finally, domain-specific fine-tuning remains essential for high performance in specialized fields, as general models lacked sufficient adaptability to expert terminology and expectations.
