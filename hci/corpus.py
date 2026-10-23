@@ -4,6 +4,7 @@ import json
 import os
 import re
 import tempfile
+import time
 from pathlib import Path
 
 from loguru import logger
@@ -65,16 +66,23 @@ def step_text(desc: str, s: dict) -> str:
 def load_facts() -> list[dict]:
     """Operator-approved facts.
 
+    A corrupt file is renamed to `facts.json.corrupt-<timestamp>`, so the next `add_fact` cannot overwrite it.
+
     Returns:
-        The facts as `{text, scenario}` dicts; empty when the file is missing or corrupt.
+        The facts as `{text, scenario}` dicts; empty when the file is missing, unreadable or corrupt.
     """
     facts = get_settings().facts_file
     if not facts.exists():
         return []
     try:
         return json.loads(facts.read_text())
-    except (OSError, json.JSONDecodeError) as e:
+    except OSError as e:
         logger.warning("Ignoring unreadable facts file {}: {}", facts, e)
+        return []
+    except json.JSONDecodeError as e:
+        backup = facts.with_name(f"{facts.name}.corrupt-{time.strftime('%Y%m%d-%H%M%S')}")
+        facts.replace(backup)
+        logger.warning("Corrupt facts file {} moved to {}: {}", facts, backup, e)
         return []
 
 
