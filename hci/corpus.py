@@ -1,9 +1,10 @@
-"""Turns everything in data/ into retrievable chunks."""
+"""Turns everything in data/ into retrievable chunks, and stores operator-approved facts."""
 
 import json
 import os
 import re
 import tempfile
+from pathlib import Path
 
 from loguru import logger
 
@@ -22,10 +23,24 @@ def stamp() -> float:
 
 
 def scenarios() -> list[dict]:
+    """Recorded scenarios.
+
+    Returns:
+        One dict per scenario, with its `description` and `steps` (one per path).
+    """
     return json.loads(PATHS_FILE.read_text())
 
 
 def step_text(desc: str, s: dict) -> str:
+    """Render one path step as a self-contained passage, with the travel time precomputed.
+
+    Args:
+        desc: Description of the scenario the step belongs to.
+        s: The step record from `paths.json`.
+
+    Returns:
+        The passage text.
+    """
     parts = [
         f"Scenario '{desc}', path {s['location']} (last passage {s.get('timestamp', '?')}): {s.get('context', '')}"
     ]
@@ -77,35 +92,55 @@ def add_fact(text: str, scenario: int | None) -> None:
     os.replace(tmp.name, facts)
 
 
-def load() -> list[RecordChunk]:
-    chunks = [
+def _load_paths() -> list[RecordChunk]:
+    return [
         RecordChunk(f"path-{i}-{s['location']}", step_text(sc.get("description", f"#{i}"), s), Source.PATH, i)
         for i, sc in enumerate(scenarios())
         for s in sc["steps"]
     ]
 
-    manual = MANUAL_FILE.read_text()
-    for n, section in enumerate(re.split(r"\n(?=\d+\. )", manual.strip())):
-        chunks.append(RecordChunk(f"manual-{n + 1}", "Robot manual. " + " ".join(section.split()), Source.MANUAL))
 
-    for f in sorted(CORRECTIONS_DIR.glob("*.md")):
-        text = f.read_text()
-        q = re.search(r"^### Q\d+: (.+)$", text, re.MULTILINE)
-        sol = re.split(r"^### correct solution\s*$", text, flags=re.MULTILINE | re.IGNORECASE)
-        if len(sol) == 2:
-            question = f"Question: {q[1]} " if q else ""
-            body = " ".join(sol[1].split())
-            chunks.append(
-                RecordChunk(
-                    f"correction-{f.stem}", f"Past mistake. {question}Expected answer: {body}", Source.CORRECTION
-                )
-            )
+def _load_manual() -> list[RecordChunk]:
+    sections = re.split(r"\n(?=\d+\. )", MANUAL_FILE.read_text().strip())
+    return [
+        RecordChunk(f"manual-{n + 1}", "Robot manual. " + " ".join(section.split()), Source.MANUAL)
+        for n, section in enumerate(sections)
+    ]
 
-    for n, ex in enumerate(json.loads(EXPLANATIONS_FILE.read_text())):
-        chunks.append(
-            RecordChunk(f"example-{n}", f"Example explanation. Q: {ex['Input']} A: {ex['Output']}", Source.EXAMPLE)
-        )
 
-    for n, fact in enumerate(load_facts()):
-        chunks.append(RecordChunk(f"fact-{n}", f"Operator update: {fact['text']}", Source.FACT, fact.get("scenario")))
-    return chunks
+def _load_correction(path: Path) -> RecordChunk | None:
+    text = path.read_text()
+    q = re.search(r"^### Q\d+: (.+)$", text, re.MULTILINE)
+    sol = re.split(r"^### correct solution\s*$", text, flags=re.MULTILINE | re.IGNORECASE)
+    if len(sol) != 2:
+        return None
+    question = f"Question: {q[1]} " if q else ""
+    body = " ".join(sol[1].split())
+    return RecordChunk(f"correction-{path.stem}", f"Past mistake. {question}Expected answer: {body}", Source.CORRECTION)
+
+
+def _load_corrections() -> list[RecordChunk]:
+    return [c for f in sorted(CORRECTIONS_DIR.glob("*.md")) if (c := _load_correction(f))]
+
+
+def _load_examples() -> list[RecordChunk]:
+    return [
+        RecordChunk(f"example-{n}", f"Example explanation. Q: {ex['Input']} A: {ex['Output']}", Source.EXAMPLE)
+        for n, ex in enumerate(json.loads(EXPLANATIONS_FILE.read_text()))
+    ]
+
+
+def _load_facts() -> list[RecordChunk]:
+    return [
+        RecordChunk(f"fact-{n}", f"Operator update: {fact['text']}", Source.FACT, fact.get("scenario"))
+        for n, fact in enumerate(load_facts())
+    ]
+
+
+def load() -> list[RecordChunk]:
+    """Every record as retrievable chunks: paths, manual, corrections, examples, then operator facts.
+
+    Returns:
+        The chunks, in that source order.
+    """
+    return _load_paths() + _load_manual() + _load_corrections() + _load_examples() + _load_facts()
