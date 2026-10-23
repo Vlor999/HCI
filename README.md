@@ -50,8 +50,8 @@ If the records do not contain the answer, the app says it does not know.
 - A Claude agent mode (`-p anthropic`). Claude searches the records and proposes facts through tools, and a fact is
   saved only after the operator approves it.
 - Streamed answers that show the current step, for example `Searching: "..."`.
-- A phone web app with Markdown answers (tables, callouts, citation badges) and document upload. It works offline
-  once loaded.
+- A phone web app with Markdown answers (tables, callouts, citation badges) and document upload. The page loads no
+  CDN script (`marked` and DOMPurify are in `web/vendor/`) but needs `hci serve` running.
 - Test cases written as JSON data and checked by pytest (retrieval) and `hci eval` (answers).
 
 ## Quick start
