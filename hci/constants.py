@@ -85,3 +85,30 @@ COMMANDS = {
     "/help": "list commands",
     "/exit": "quit",
 }
+
+# --- agent/server ------------------------------------------------------------
+
+AGENT_SCENARIO_NOTE = "The current scenario is {}."
+AGENT_NO_SCENARIO_NOTE = "No current scenario."
+AGENT_NO_OPERATOR = "Not saved: no operator available to approve facts here."
+AGENT_PROPOSED_ON_PHONE = "Proposed: the operator will approve or reject it on the phone."
+AGENT_NOTHING_FOUND = "Nothing relevant in the records."
+AGENT_REFUSAL = "\n[The model declined to answer.]"
+AGENT_NO_KEY = "Claude is not configured: set ANTHROPIC_API_KEY on the server."
+AGENT_STEP_THINKING = "Thinking"
+AGENT_STEP_REASONING = "Reasoning"
+AGENT_STEP_FOUND = "Found {} passages"
+AGENT_STEP_ERROR = "Claude request failed"
+AGENT_TOOL_STEPS = {  # step label per tool; {query} and {text} come from the tool input
+    "query_context": 'Searching: "{query}"',
+    "add_context": 'Proposing fact: "{text}"',
+    "list_scenarios": "Listing scenarios",
+}
+AGENT_TOOL_STEP_DEFAULT = "Running tool {tool}"
+AGENT_TOOL_STEP_SCENARIO = " (scenario {})"
+AGENT_ERRORS = {  # Anthropic exception class name -> user message; the nearest class in the MRO wins
+    "AuthenticationError": "Claude rejected the server's API key. Check ANTHROPIC_API_KEY.",
+    "RateLimitError": "Claude is rate limited right now. Try again in a minute.",
+    "APIConnectionError": "Cannot reach Claude. Check the server's internet connection.",
+    "APIStatusError": "Claude returned an error. Try again, or use a local model.",
+}

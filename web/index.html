@@ -37,7 +37,7 @@
   <select id="provider" aria-label="Model"></select>
 </div>
 <div id="log"></div>
-<textarea id="q" rows="3" placeholder="Why did you avoid path A?"></textarea>
+<textarea id="q" rows="3" aria-label="Question, or fact to save"placeholder="Why did you avoid path A?"></textarea>
 <div class="row" style="margin-top:8px">
   <button id="ask">Ask</button>
   <button id="fact" class="ghost">Save as fact</button>
@@ -72,6 +72,7 @@
       if (!r.ok) throw new Error(await r.text());
       const reader = r.body.getReader(), dec = new TextDecoder();
       let raw = "";
+      // stream markers: \x1f starts a step line, \x1e starts the proposals JSON (single definition: hci/constants.py)
       for (let c; !(c = await reader.read()).done;) {
         raw += dec.decode(c.value, { stream: true });
         const [body] = raw.split("\x1e"), done = [...body.matchAll(/\x1f([^\n]*)\n/g)].map(m => m[1]);
@@ -91,19 +92,27 @@
     const row = document.createElement("div"); row.className = "row";
     const yes = document.createElement("button"); yes.textContent = "Approve";
     const no = document.createElement("button"); no.textContent = "Reject"; no.className = "ghost";
+    const msg = document.createElement("small");
     yes.onclick = async () => {
-      const r = await fetch("/api/facts", { method: "POST", headers, body: JSON.stringify(p) });
-      box.replaceChildren(r.ok ? "Fact saved." : "Could not save fact.");
+      yes.disabled = no.disabled = true;
+      try { await saveFact(p); box.replaceChildren("Fact saved."); }
+      catch (e) { msg.textContent = String(e.message || e); yes.disabled = no.disabled = false; }
     };
-    no.onclick = () => box.remove();
-    row.append(yes, no); box.append(label, row); $("log").append(box);
+    no.onclick = () => { yes.disabled = no.disabled = true; box.remove(); };
+    row.append(yes, no); box.append(label, row, msg); $("log").append(box);
+  }
+
+  async function saveFact(fact) {
+    let r;
+    try { r = await fetch("/api/facts", { method: "POST", headers, body: JSON.stringify(fact) }); }
+    catch { throw new Error("Could not save fact: server unreachable."); }
+    if (!r.ok) throw new Error(`Could not save fact (HTTP ${r.status}).`);
   }
 
   $("fact").onclick = async () => {
     const text = $("q").value.trim(); if (!text) return;
-    const r = await fetch("/api/facts", { method: "POST", headers, body: JSON.stringify({ text, scenario: scenario() }) });
-    $("status").textContent = r.ok ? "Fact saved." : "Could not save fact.";
-    if (r.ok) $("q").value = "";
+    try { await saveFact({ text, scenario: scenario() }); $("status").textContent = "Fact saved."; $("q").value = ""; }
+    catch (e) { $("status").textContent = String(e.message || e); }
   };
 </script>
 </body>

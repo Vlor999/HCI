@@ -48,6 +48,13 @@ class Settings(BaseSettings):
     port: int = Field(default=8000, description="Server port.")
     facts_file: Path = Field(default=FACTS_FILE, description="JSON file of operator-approved facts.")
 
+    # --- agent/server ---
+    anthropic_api_key: SecretStr | None = Field(
+        default=None,
+        validation_alias=AliasChoices("ANTHROPIC_API_KEY"),
+        description="Anthropic API key; enables the `anthropic` provider when set.",
+    )
+
 
 @lru_cache
 def get_settings() -> Settings:
