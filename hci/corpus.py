@@ -1,7 +1,11 @@
 """Turns everything in data/ into retrievable chunks."""
 
 import json
+import os
 import re
+import tempfile
+
+from loguru import logger
 
 from hci.config import get_settings
 from hci.constants import CORRECTIONS_DIR, DATA_DIR, EXPLANATIONS_FILE, MANUAL_FILE, PATHS_FILE, Source
@@ -9,8 +13,12 @@ from hci.types import RecordChunk
 
 
 def stamp() -> float:
-    """Latest change in data/, so a running server picks up edits made elsewhere."""
-    return max(f.stat().st_mtime for f in DATA_DIR.rglob("*") if f.is_file())
+    """Latest change in data/, so a running server picks up edits made elsewhere.
+
+    Returns:
+        The newest file modification time under `DATA_DIR`, 0.0 when it holds no file.
+    """
+    return max((f.stat().st_mtime for f in DATA_DIR.rglob("*") if f.is_file()), default=0.0)
 
 
 def scenarios() -> list[dict]:
@@ -40,12 +48,33 @@ def step_text(desc: str, s: dict) -> str:
 
 
 def load_facts() -> list[dict]:
+    """Operator-approved facts.
+
+    Returns:
+        The facts as `{text, scenario}` dicts; empty when the file is missing or corrupt.
+    """
     facts = get_settings().facts_file
-    return json.loads(facts.read_text()) if facts.exists() else []
+    if not facts.exists():
+        return []
+    try:
+        return json.loads(facts.read_text())
+    except (OSError, json.JSONDecodeError) as e:
+        logger.warning("Ignoring unreadable facts file {}: {}", facts, e)
+        return []
 
 
 def add_fact(text: str, scenario: int | None) -> None:
-    get_settings().facts_file.write_text(json.dumps(load_facts() + [{"text": text, "scenario": scenario}], indent=2))
+    """Append an approved fact, atomically: a crash mid-write leaves the old file intact.
+
+    Args:
+        text: The fact, one self-contained sentence.
+        scenario: Scenario it applies to; None for everywhere.
+    """
+    facts = get_settings().facts_file
+    payload = json.dumps(load_facts() + [{"text": text, "scenario": scenario}], indent=2)
+    with tempfile.NamedTemporaryFile("w", dir=facts.parent, suffix=".tmp", delete=False) as tmp:
+        tmp.write(payload)
+    os.replace(tmp.name, facts)
 
 
 def load() -> list[RecordChunk]:
