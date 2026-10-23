@@ -46,3 +46,7 @@ addopts = "--strict-markers"
 markers = ["embedder: loads the real sentence-transformers embedder (downloaded once, then cached)"]
 
 # Linux (CI) installs CPU-only torch; macOS keeps the default PyPI wheels.
+
+[tool.ty.analysis]
+# mlx-lm only installs on Apple Silicon (see dependencies); CI runs on Linux
+allowed-unresolved-imports = ["mlx_lm.**"]
