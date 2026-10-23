@@ -5,8 +5,8 @@
     "question": "In which order should I take the paths to finish the race first?",
     "scenario": 0,
     "expect": {
-      "first": ["path-0-A", "path-0-B", "path-0-C"],
-      "retrieved": ["correction-correction_1"],
+      "first": ["data/paths.json#0/A", "data/paths.json#0/B", "data/paths.json#0/C"],
+      "retrieved": ["data/corrections/correction_1.md"],
       "answer_contains": ["C"]
     }
   }

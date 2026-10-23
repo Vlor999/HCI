@@ -39,13 +39,19 @@ class TestStepText:
 
 class TestLoad:
     def test_chunk_ids_follow_their_source(self):
-        """Ids encode source, scenario and location, and are unique."""
+        """Ids are explicit file references (`<file>#<position>`), and unique."""
         # Act
         chunks = corpus.load()
         # Assert
         ids = [c.id for c in chunks]
         assert len(ids) == len(set(ids))
-        assert {"path-0-A", "path-2-R", "manual-1", "correction-correction_1", "example-0"} <= set(ids)
+        assert {
+            "data/paths.json#0/A",
+            "data/paths.json#2/R",
+            "data/documents/sample_manual.md#1",
+            "data/corrections/correction_1.md",
+            "data/explanations/sample_explanations.json#0",
+        } <= set(ids)
 
     def test_facts_come_last_with_their_scenario(self):
         """Approved facts are appended as `fact-<n>` chunks carrying their scenario."""

@@ -10,8 +10,21 @@ from pathlib import Path
 from loguru import logger
 
 from hci.config import get_settings
-from hci.constants import CORRECTIONS_DIR, DATA_DIR, EXPLANATIONS_FILE, MANUAL_FILE, PATHS_FILE, Source
+from hci.constants import CORRECTIONS_DIR, DATA_DIR, EXPLANATIONS_FILE, MANUAL_FILE, PATHS_FILE, ROOT_DIR, Source
 from hci.types import RecordChunk
+
+
+def file_ref(path: Path) -> str:
+    """Reference to a file for chunk ids: its path relative to the repo root, or absolute outside the repo.
+
+    Args:
+        path: The file.
+
+    Returns:
+        The POSIX path, e.g. `data/paths.json`.
+    """
+    path = path.resolve()
+    return path.relative_to(ROOT_DIR).as_posix() if path.is_relative_to(ROOT_DIR) else path.as_posix()
 
 
 def stamp() -> float:
@@ -103,7 +116,9 @@ def add_fact(text: str, scenario: int | None) -> None:
 
 def _load_paths() -> list[RecordChunk]:
     return [
-        RecordChunk(f"path-{i}-{s['location']}", step_text(sc.get("description", f"#{i}"), s), Source.PATH, i)
+        RecordChunk(
+            f"{file_ref(PATHS_FILE)}#{i}/{s['location']}", step_text(sc.get("description", f"#{i}"), s), Source.PATH, i
+        )
         for i, sc in enumerate(scenarios())
         for s in sc["steps"]
     ]
@@ -112,7 +127,7 @@ def _load_paths() -> list[RecordChunk]:
 def _load_manual() -> list[RecordChunk]:
     sections = re.split(r"\n(?=\d+\. )", MANUAL_FILE.read_text().strip())
     return [
-        RecordChunk(f"manual-{n + 1}", "Robot manual. " + " ".join(section.split()), Source.MANUAL)
+        RecordChunk(f"{file_ref(MANUAL_FILE)}#{n + 1}", "Robot manual. " + " ".join(section.split()), Source.MANUAL)
         for n, section in enumerate(sections)
     ]
 
@@ -125,7 +140,7 @@ def _load_correction(path: Path) -> RecordChunk | None:
         return None
     question = f"Question: {q[1]} " if q else ""
     body = " ".join(sol[1].split())
-    return RecordChunk(f"correction-{path.stem}", f"Past mistake. {question}Expected answer: {body}", Source.CORRECTION)
+    return RecordChunk(file_ref(path), f"Past mistake. {question}Expected answer: {body}", Source.CORRECTION)
 
 
 def _load_corrections() -> list[RecordChunk]:
@@ -134,7 +149,11 @@ def _load_corrections() -> list[RecordChunk]:
 
 def _load_examples() -> list[RecordChunk]:
     return [
-        RecordChunk(f"example-{n}", f"Example explanation. Q: {ex['Input']} A: {ex['Output']}", Source.EXAMPLE)
+        RecordChunk(
+            f"{file_ref(EXPLANATIONS_FILE)}#{n}",
+            f"Example explanation. Q: {ex['Input']} A: {ex['Output']}",
+            Source.EXAMPLE,
+        )
         for n, ex in enumerate(json.loads(EXPLANATIONS_FILE.read_text()))
     ]
 

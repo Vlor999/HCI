@@ -24,7 +24,7 @@ class TestRetrieve:
         # Act
         ids = _ids(rag, "battery recharge", 0)
         # Assert
-        assert ids[:3] == ["path-0-A", "path-0-B", "path-0-C"]
+        assert ids[:3] == ["data/paths.json#0/A", "data/paths.json#0/B", "data/paths.json#0/C"]
         assert len(ids) == len(set(ids))
 
     @pytest.mark.parametrize("question", ["path Y heavy load", "winter snow on path P", "which path is fastest?"])
@@ -33,7 +33,7 @@ class TestRetrieve:
         # Act
         ids = _ids(rag, question, 0)
         # Assert
-        assert not [i for i in ids if i.startswith(("path-1-", "path-2-"))]
+        assert not [i for i in ids if i.startswith(("data/paths.json#1/", "data/paths.json#2/"))]
 
     def test_scenario_and_global_facts_pinned(self, rag):
         """The scenario's facts and facts without scenario are pinned; other scenarios' facts are not."""
@@ -44,7 +44,7 @@ class TestRetrieve:
         # Act
         ids = _ids(rag, "battery recharge", 0, k=0)
         # Assert
-        assert ids == ["path-0-A", "path-0-B", "path-0-C", "fact-0", "fact-2"]
+        assert ids == ["data/paths.json#0/A", "data/paths.json#0/B", "data/paths.json#0/C", "fact-0", "fact-2"]
 
     def test_follow_up_searched_with_previous_question(self, rag):
         """A follow-up is searched together with the previous question."""
@@ -53,8 +53,8 @@ class TestRetrieve:
         # Act
         without, with_history = _ids(rag, "and then?", None, k=3), _ids(rag, "and then?", None, history=history, k=3)
         # Assert
-        assert "manual-1" not in without
-        assert "manual-1" in with_history
+        assert "data/documents/sample_manual.md#1" not in without
+        assert "data/documents/sample_manual.md#1" in with_history
 
 
 class TestJevGate:
@@ -75,10 +75,15 @@ class TestJevGate:
         # Arrange
         rag.judge = True
         # Act
-        with patch("hci.rag.jev.judge", return_value=({"manual-1"}, True)) as judge:
+        with patch("hci.rag.jev.judge", return_value=({"data/documents/sample_manual.md#1"}, True)) as judge:
             ids = _ids(rag, "energy recharge power source", 0)
         # Assert
-        assert ids == ["path-0-A", "path-0-B", "path-0-C", "manual-1"]
+        assert ids == [
+            "data/paths.json#0/A",
+            "data/paths.json#0/B",
+            "data/paths.json#0/C",
+            "data/documents/sample_manual.md#1",
+        ]
         judge.assert_called_once()
 
 
@@ -86,7 +91,10 @@ class TestPrompt:
     def test_facts_get_their_own_section_first(self, rag):
         """Operator updates sit in a section above the records, numbered like the context."""
         # Arrange
-        ctx = [_make_chunk("path-0-A", text="Path A"), _make_chunk("fact-0", Source.FACT, "Path A is flooded")]
+        ctx = [
+            _make_chunk("data/paths.json#0/A", text="Path A"),
+            _make_chunk("fact-0", Source.FACT, "Path A is flooded"),
+        ]
         # Act
         prompt = rag.prompt("why?", ctx)
         # Assert
@@ -97,7 +105,7 @@ class TestPrompt:
     def test_no_updates_section_without_facts(self, rag):
         """Without facts, the prompt has no operator updates header."""
         # Act
-        prompt = rag.prompt("why?", [_make_chunk("path-0-A")])
+        prompt = rag.prompt("why?", [_make_chunk("data/paths.json#0/A")])
         # Assert
         assert "OPERATOR UPDATES" not in prompt
         assert prompt.endswith("Question: why?")
@@ -109,7 +117,7 @@ class TestPrompt:
         get_settings.cache_clear()
         history = [("q1", "a1"), ("q2", "a2"), ("q3", "a3")]
         # Act
-        prompt = rag.prompt("why?", [_make_chunk("path-0-A")], history)
+        prompt = rag.prompt("why?", [_make_chunk("data/paths.json#0/A")], history)
         # Assert
         assert "Q: q1" not in prompt
         assert "Earlier in this conversation:\nQ: q2\nA: a2\nQ: q3\nA: a3\n" in prompt
