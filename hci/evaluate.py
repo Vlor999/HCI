@@ -8,9 +8,10 @@ from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
 
+from hci import metrics
 from hci.agent import answerer
 from hci.config import get_settings
-from hci.constants import CASES_DIR, STEP_MARKER
+from hci.constants import CASES_DIR, STEP_MARKER, MetricSource
 from hci.device import backend
 from hci.index import default_embedder
 from hci.rag import ExplanationPipeline, text_only
@@ -71,7 +72,8 @@ def _score_retrieval(ids: list[str], expect: dict) -> tuple[float | None, bool]:
 def _time_answer(answer: Answer, case: dict) -> tuple[bool, float, float | None]:
     """Streams one answer; returns whether it passes, the first-token delay and tokens per second."""
     t0, first, pieces = time.perf_counter(), None, []
-    for piece in answer(case["question"], case.get("scenario"), case.get("history", [])):
+    stream = answer(case["question"], case.get("scenario"), case.get("history", []))
+    for piece in metrics.track(stream, MetricSource.EVAL, case["question"], case.get("scenario")):
         if not piece.startswith(STEP_MARKER):
             first = first or time.perf_counter()
             pieces.append(piece)
@@ -92,7 +94,8 @@ def _run_case(
     expect = case["expect"]
     with _isolated_facts(rag, case):
         t0 = time.perf_counter()
-        retrieval = rag.retrieve(case["question"], case.get("scenario"), case.get("history", []))
+        with metrics.scope(MetricSource.EVAL, case["question"], case.get("scenario")):
+            retrieval = rag.retrieve(case["question"], case.get("scenario"), case.get("history", []))
         retrieve_s = time.perf_counter() - t0
         recall, retrieval_ok = _score_retrieval([c.id for c in retrieval.chunks], expect)
         if not answer or not {"answer_contains", "answer_excludes"} & expect.keys():

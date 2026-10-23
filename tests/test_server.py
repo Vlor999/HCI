@@ -167,6 +167,16 @@ def test_markdown_libraries_are_served_locally(client: TestClient, path: str):
     assert "javascript" in response.headers["content-type"]
 
 
+def test_answer_writes_a_server_request_event(client):
+    """Each `/api/ask` answer appends a `request` event with source `server` and no question text."""
+    # Act
+    client.post("/api/ask", headers=AUTH, json={"question": "why path A?", "scenario": 1})
+    # Assert
+    (event,) = [json.loads(line) for line in get_settings().metrics_file.read_text().splitlines()]
+    assert (event["kind"], event["source"], event["scenario"], event["question_chars"]) == ("request", "server", 1, 11)
+    assert "why path A" not in json.dumps(event)
+
+
 class TestDocuments:
     @pytest.fixture
     def docs_client(self, client: TestClient, tmp_path, monkeypatch: pytest.MonkeyPatch, fake_embed) -> TestClient:

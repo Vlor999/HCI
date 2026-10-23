@@ -19,7 +19,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from loguru import logger
 
-from hci import corpus, documents
+from hci import corpus, documents, metrics
 from hci.agent import answerer
 from hci.config import get_settings
 from hci.constants import (
@@ -30,6 +30,7 @@ from hci.constants import (
     UPLOADS_ROUTE,
     VENDOR_DIR,
     WEB_PAGE,
+    MetricSource,
 )
 from hci.device import backend
 from hci.rag import ExplanationPipeline
@@ -250,7 +251,8 @@ def _answer_stream(provider: str, req: AskRequest) -> Iterator[str]:
     proposals: list[dict] = []
     with nullcontext() if provider == Provider.ANTHROPIC else local_lock:
         answer = _get_answerer(provider)
-        yield from answer(req.question, req.scenario, req.history, partial(_propose, proposals))
+        stream = answer(req.question, req.scenario, req.history, partial(_propose, proposals))
+        yield from metrics.track(stream, MetricSource.SERVER, req.question, req.scenario)
     if proposals:  # facts the agent wants to save; the page shows approve buttons
         yield PROPOSALS_MARKER + json.dumps(proposals)
 

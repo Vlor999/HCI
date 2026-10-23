@@ -9,10 +9,10 @@ from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import CompleteEvent, Completer, Completion, FuzzyWordCompleter
 from prompt_toolkit.document import Document
 
-from hci import corpus, evaluate, server
+from hci import corpus, evaluate, metrics, server
 from hci.agent import answerer
 from hci.config import get_settings
-from hci.constants import COMMANDS, STEP_MARKER
+from hci.constants import COMMANDS, STEP_MARKER, MetricSource
 from hci.rag import ExplanationPipeline
 from hci.types import Answer
 
@@ -89,12 +89,13 @@ class ChatSession:
         return "Saved."
 
     def ask(self, question: str) -> None:
-        """Stream the answer to `question` and record the turn.
+        """Stream the answer to `question`, record the turn and its metrics.
 
         Args:
             question: The user's question.
         """
-        pieces = [show(p) for p in self.answer(question, self.scenario, self.history, self.propose)]
+        stream = self.answer(question, self.scenario, self.history, self.propose)
+        pieces = [show(p) for p in metrics.track(stream, MetricSource.CLI, question, self.scenario)]
         self.history.append((question, "".join(pieces).strip()))
         print()
 

@@ -90,3 +90,16 @@ def test_rates_skip_cases_without_the_check(tmp_path):
     assert report["recall"] == 0.5  # 1.0 and 0.0; the no-fact case expects no chunk
     assert report["answer_pass_rate"] == 1.0  # only the failing case has answer checks
     assert report["failures"] == [{"id": "fails", "recall": 0.0, "retrieval_ok": False, "answer_ok": True}]
+
+
+def test_eval_events_carry_the_eval_source(tmp_path):
+    """Eval retrievals and answers are logged with source `eval`; the answer keeps its own request id."""
+    # Arrange
+    cases_dir = _make_cases_dir(tmp_path, FAILING_CASE)
+    # Act
+    evaluate.run("cpu", None, answers=True, cases_dir=cases_dir)
+    # Assert
+    events = [json.loads(line) for line in get_settings().metrics_file.read_text().splitlines()]
+    assert [e["kind"] for e in events] == ["retrieval", "request"]
+    assert {e["source"] for e in events} == {"eval"}
+    assert events[0]["request_id"] != events[1]["request_id"]

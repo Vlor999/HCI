@@ -1,5 +1,6 @@
 """Tests for hci.cli: chat commands, operator approval and the slash command completer."""
 
+import json
 from unittest.mock import MagicMock
 
 import pytest
@@ -7,6 +8,7 @@ from prompt_toolkit.completion import CompleteEvent
 from prompt_toolkit.document import Document
 
 from hci.cli import ChatSession, SlashCommandCompleter
+from hci.config import get_settings
 from hci.constants import COMMANDS
 
 NAMES = ["Default", "Heavy load", "Winter"]
@@ -32,6 +34,16 @@ class TestChatSession:
         assert keep_going
         assert session.history == [("why A?", "answer to why A?")]
         assert "answer to why A?" in capsys.readouterr().out
+
+    def test_question_writes_a_cli_request_event(self, fake_answer):
+        """Each answered question appends a `request` event with source `cli`."""
+        # Arrange
+        session, rag = _make_session(fake_answer, scenario=1)
+        # Act
+        session.handle("why A?")
+        # Assert
+        (event,) = [json.loads(line) for line in get_settings().metrics_file.read_text().splitlines()]
+        assert (event["kind"], event["source"], event["scenario"], event["output_pieces"]) == ("request", "cli", 1, 1)
 
     def test_fact_saves_for_current_scenario(self, fake_answer):
         """`/fact <text>` saves the operator's text for the current scenario."""
