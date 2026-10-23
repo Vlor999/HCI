@@ -45,3 +45,11 @@ testpaths = ["tests"]
 addopts = "--strict-markers"
 markers = ["embedder: loads the real sentence-transformers embedder (downloaded once, then cached)"]
 
+# Linux (CI) installs CPU-only torch; macOS keeps the default PyPI wheels.
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
