@@ -5,22 +5,23 @@ Stream protocol of `/api/ask`: answer text, step lines prefixed by `STEP_MARKER`
 """
 
 import json
-import secrets
 import socket
 import threading
+import time
 from collections.abc import Iterator
 from contextlib import nullcontext
 from functools import cache, partial
 from pathlib import Path
 
 import uvicorn
-from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response, UploadFile
+from fastapi import Depends, FastAPI, HTTPException, Request, Response, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from loguru import logger
 
-from hci import corpus, documents
+from hci import corpus, dashboard, documents, metrics
 from hci.agent import answerer
+from hci.auth import auth
 from hci.config import get_settings
 from hci.constants import (
     AGENT_PROPOSED_ON_PHONE,
@@ -30,6 +31,7 @@ from hci.constants import (
     UPLOADS_ROUTE,
     VENDOR_DIR,
     WEB_PAGE,
+    MetricSource,
 )
 from hci.device import backend
 from hci.rag import ExplanationPipeline
@@ -38,6 +40,7 @@ from hci.types import Answer, RecordChunk
 
 app = FastAPI(title="HCI robot explainer")
 app.mount("/vendor", StaticFiles(directory=VENDOR_DIR), name="vendor")
+dashboard.add_routes(app, require_token=True)
 answerers: dict[str, Answer] = {}
 # ponytail: one local generation at a time (local models aren't thread-safe), fine for one robot; a queue per backend
 # if several phones share a GPU. Claude requests and fact writes never wait for it.
@@ -62,20 +65,6 @@ def providers() -> list[str]:
         Provider names, the default first.
     """
     return [backend()] + ([Provider.ANTHROPIC] if get_settings().anthropic_api_key else [])
-
-
-def auth(authorization: str = Header("")) -> None:
-    """Check the bearer token, comparing bytes so any header value gives 401 on mismatch.
-
-    Args:
-        authorization: the `Authorization` header.
-
-    Raises:
-        HTTPException: 401 when the token is missing or wrong.
-    """
-    expected = f"Bearer {get_settings().token}".encode()
-    if not secrets.compare_digest(authorization.encode(), expected):
-        raise HTTPException(401, "Missing or wrong token. Open the link printed by `hci serve`.")
 
 
 @app.middleware("http")
@@ -159,7 +148,8 @@ def ask(req: AskRequest) -> StreamingResponse:
     provider = req.provider or available[0]
     if provider not in available:
         raise HTTPException(400, f"Provider must be one of {available}.")
-    return StreamingResponse(_answer_stream(provider, req), media_type="text/plain; charset=utf-8")
+    stream = _answer_stream(provider, req, time.perf_counter())
+    return StreamingResponse(stream, media_type="text/plain; charset=utf-8")
 
 
 @app.post("/api/facts", dependencies=[Depends(auth)])
@@ -246,11 +236,17 @@ def _get_answerer(provider: str) -> Answer:
     return answerers[provider]
 
 
-def _answer_stream(provider: str, req: AskRequest) -> Iterator[str]:
+def _answer_stream(provider: str, req: AskRequest, start: float) -> Iterator[str]:
+    """Answer under the local lock; the metrics clock starts at `start`, so TTFT includes the wait and model load."""
     proposals: list[dict] = []
     with nullcontext() if provider == Provider.ANTHROPIC else local_lock:
+        queue_ms = metrics.elapsed_ms(start)
         answer = _get_answerer(provider)
-        yield from answer(req.question, req.scenario, req.history, partial(_propose, proposals))
+        stream = answer(req.question, req.scenario, req.history, partial(_propose, proposals))
+        tracked = metrics.track(
+            stream, MetricSource.SERVER, req.question, req.scenario, req.conversation_id, start=start, queue_ms=queue_ms
+        )
+        yield from tracked
     if proposals:  # facts the agent wants to save; the page shows approve buttons
         yield PROPOSALS_MARKER + json.dumps(proposals)
 
@@ -264,7 +260,7 @@ def _lan_ip(host: str) -> str:
 
 
 def run(host: str, port: int) -> None:
-    """Start the server and print the link to open on the phone.
+    """Start the server and print the links to the phone app and the metrics dashboard.
 
     Args:
         host: bind address (0.0.0.0 for phone access on the LAN).
@@ -276,5 +272,7 @@ def run(host: str, port: int) -> None:
         host,
         port,
     )
-    print(f"Open on your phone (same Wi-Fi): http://{_lan_ip(host)}:{port}/#{get_settings().token}")
+    token, lan_ip = get_settings().token, _lan_ip(host)
+    print(f"Open on your phone (same Wi-Fi): http://{lan_ip}:{port}/#{token}")
+    print(f"Metrics dashboard: http://{lan_ip}:{port}/dashboard#{token}")
     uvicorn.run(app, host=host, port=port)

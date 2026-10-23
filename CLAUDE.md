@@ -14,13 +14,14 @@ All execution MUST go through [`uv`](https://github.com/astral-sh/uv). Never bar
 
 ```
 HCI (root)
-├── hci/        # package: corpus, documents, index, rag, agent, llm, device, jev, server, cli, evaluate
+├── hci/        # package: corpus, documents, index, rag, agent, llm, device, jev, metrics, auth, server, dashboard, cli, evaluate
 │   ├── constants.py   # immutable values (URLs, model ids, prompts, labels, markers)
 │   ├── config.py      # pydantic-settings Settings + get_settings()
 │   ├── types.py       # type aliases, protocols, domain dataclasses
 │   └── schemas.py     # API request/response pydantic models
 ├── tests/      # test_<module>.py, test_cases.py, cases/*.json + schema.json
-├── web/        # phone UI (index.html)
+├── web/        # phone UI (index.html), metrics dashboard (dashboard.html), vendor/ pinned JS libs
+├── logs/       # metrics.jsonl and dashboard.log (git-ignored)
 ├── data/       # paths, documents (manual, uploads), corrections
 ├── doc/        # LaTeX report
 └── .agents/    # rules and skills (.claude/ symlinks here)

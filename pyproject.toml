@@ -24,6 +24,7 @@ dependencies = [
 
 [project.scripts]
 hci = "hci.cli:main"
+hci-dashboard = "hci.dashboard:main"
 
 [dependency-groups]
 dev = [

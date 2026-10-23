@@ -52,6 +52,8 @@ If the records do not contain the answer, the app says it does not know.
 - Streamed answers that show the current step, for example `Searching: "..."`.
 - A phone web app with Markdown answers (tables, callouts, citation badges) and document upload. The page loads no
   CDN script (`marked` and DOMPurify are in `web/vendor/`) but needs `hci serve` running.
+- A live metrics log and local dashboard: time to first token, inter-piece latency, tokens, Jev latency, tool
+  calls and estimated cost per message and per conversation.
 - Test cases written as JSON data and checked by pytest (retrieval) and `hci eval` (answers).
 
 ## Quick start
@@ -64,6 +66,7 @@ uv run hci -s 0 ask "In which order should I take the paths to finish first?"
 uv run hci -s 0 chat                                   # follow-ups and slash commands
 uv run hci -s 2 fact "Path Q is closed for maintenance"
 uv run hci serve                                       # phone app, see below
+uv run hci dashboard --open                            # metrics and costs, see below
 ```
 
 The first run downloads the models. API keys go in `.env` (git-ignored); load it with `uv run --env-file .env hci ...`.
@@ -94,6 +97,9 @@ Every tunable is a field of `Settings` in `hci/config.py`, read from `HCI_<FIELD
 | `HCI_DOCUMENTS_DIR` | `data/documents` | documents folder, read recursively |
 | `HCI_CHUNK_WORDS`, `HCI_CHUNK_OVERLAP_WORDS` | `220`, `40` | document chunk size and overlap |
 | `HCI_MAX_UPLOAD_MB` | `20` | largest phone upload |
+| `HCI_METRICS_ENABLED`, `HCI_METRICS_FILE` | `true`, `logs/metrics.jsonl` | metrics log |
+| `HCI_DASHBOARD_HOST`, `HCI_DASHBOARD_PORT` | `127.0.0.1`, `8790` | standalone dashboard bind |
+| `HCI_JEV_PRICE_INPUT_PER_MTOK`, `HCI_JEV_PRICE_OUTPUT_PER_MTOK` | none | Jev prices for cost estimates |
 | `ANTHROPIC_API_KEY` | none | enables `-p anthropic` |
 | `TYPESAFE_API_KEY` | none | enables the Jev judge |
 
@@ -143,6 +149,70 @@ the CLI asks `[y/N]` and the phone shows Approve / Reject. Local models use the 
 use tools reliably. A Claude failure (bad key, rate limit, network) ends the stream with a `Claude request failed` step and a
 message saying what to fix.
 
+## Metrics and dashboard
+
+Every answer (`hci ask`, `hci chat`, the phone, `hci eval`) appends events to `logs/metrics.jsonl` (git-ignored), one
+JSON object per line. Each line has `kind`, `ts` (epoch seconds), `source` (`cli`, `server`, `eval`), a
+`request_id` that ties together the events of one answer, and a `conversation_id`: one per `hci chat` session (or
+`hci ask` call), one per phone conversation (the page makes a random id, New conversation starts another; it is
+sent as `conversation_id` in `/api/ask`), one per `hci eval` run.
+
+| `kind` | Fields |
+| --- | --- |
+| `request` | provider, model, scenario, `question_chars`, `ttft_ms` (first answer text, steps excluded), `total_ms`, `queue_ms` (wait for the local generation lock, server), `ipl_mean_ms` / `ipl_p50_ms` / `ipl_p95_ms` / `ipl_max_ms` (inter-piece latency: gaps between streamed text pieces within one model turn; a piece is a word, a delta or a chunk depending on the backend, not a token), `output_pieces`, `output_tokens`, `tokens_per_s`, `input_tokens`, Claude `cache_creation_input_tokens` / `cache_read_input_tokens`, `model_ms` / `tool_ms` (Claude), `stop_reason`, `refusal`, `fallback_model`, `error` (class name), `cost_usd`, `cost` (by component), `price_unknown` |
+| `retrieval` | `latency_ms` (Jev included), `k`, `chunks`, `pinned`, `judged`, `answerable` |
+| `jev` | `latency_ms`, `network_ms` (httpx `elapsed`), `questions`, `passages_kept` / `passages_total`, `answerable_p`, Jev `input_tokens` / `output_tokens`, `model`, `fallback`, `error`, `cost_usd`, `price_unknown` |
+| `tool` | agent tool name, `duration_ms`, `ok`, `result_chars`, `passages` (for `query_context`) |
+| `model_turn` | one Claude turn: `duration_ms` (request to final message, tools excluded), usage tokens, `stop_reason`, `fallback_model`, `cost_usd`, `cost`, `price_unknown` |
+
+Token counts are the model's own: MLX `stream_generate` responses, the HF tokenizer on the generated text, Claude's
+`usage` summed over turns (thinking and tool calls included). `tokens_per_s` divides by the text streaming span for
+local models and by `model_ms` for Claude, whose final text can arrive in one burst. Eval events use source `eval`,
+so runs can be compared; the JSON report of `hci eval` is unchanged.
+
+Costs are estimates: list prices applied to the usage the APIs report (no discounts, no batch rates). Each
+Claude turn is priced by the model that answered (`response.model`, the fallback model when the server fell back),
+input, output, cache write (1.25 x input, 5-minute cache) and cache read apart; a request sums its turns and its Jev
+calls. Prices live in `MODEL_PRICES` in `hci/constants.py`, in USD per million tokens, with the date they were copied
+(`PRICES_DATE`). A model or a component that is not listed is never guessed: its cost is `null` and
+`price_unknown` is set (the request's cost then covers the priced parts only). Local models cost 0. Jev does not
+publish prices, so set them from console.typesafe.ai: `HCI_JEV_PRICE_INPUT_PER_MTOK` and
+`HCI_JEV_PRICE_OUTPUT_PER_MTOK`; until then the Jev cost is `null` and the dashboard says "Jev price not set".
+
+The question text is not logged, only its length (`HCI_METRICS_LOG_QUESTIONS=true` adds it). Document
+contents, tool inputs and results, API keys and the token are never logged. `HCI_METRICS_ENABLED=false` turns it off.
+The file rotates to `metrics.jsonl.1` at `HCI_METRICS_MAX_MB` (default 10); one backup is kept.
+
+The dashboard polls the log every 3 s: TTFT over time and its distribution per model, inter-piece latency p50/p95,
+tokens/s, Claude tokens per request and totals, Jev latency (total and network) and tokens, retrieval latency, tool
+calls, errors and fallbacks, and the last requests. Cost: today, last 7 days and the whole log (current file plus its
+backup), average per answer, Anthropic and Jev totals, cumulative cost per model, the share of each component, cost
+per answer, and conversations sorted by cost (click one to see its messages). Chart.js 4.5.0 is vendored in `web/vendor/`, so the dashboard needs no internet access.
+
+```sh
+uv run hci dashboard --open   # light server on http://127.0.0.1:8790/dashboard: no model, embedder or RAG loaded
+```
+
+It reads only the JSONL file, so it can run while nothing else does, and starts in about 0.3 s. On `127.0.0.1` (the
+default, `HCI_DASHBOARD_HOST`) no token is needed, and only a loopback `Host` (`127.0.0.1`, `localhost`, `[::1]`) is
+answered, so a web page cannot read it through DNS rebinding. On any other address `/api/metrics` needs the API
+token; the printed link carries it on a terminal, never in a log. `hci serve` also serves `/dashboard`; its `/api/metrics` needs the token (link printed at startup).
+`GET /api/metrics?since=<ts>&limit=<n>` returns the events.
+
+Keep it always on (macOS): `uv run hci dashboard --install` writes the LaunchAgent
+`~/Library/LaunchAgents/io.github.vlor999.hci-dashboard.plist` (runs the venv's `hci-dashboard` at login, restarts it,
+logs to `logs/dashboard.log`) and loads it, retrying once if launchd refuses; it exits non-zero on failure. For a
+non-loopback `HCI_DASHBOARD_HOST`, set `HCI_TOKEN` first: it is written into the plist (owner-only), so the token
+stays the same across restarts; without it `--install` refuses. `--status` says whether it runs, `--uninstall` stops and removes it. On
+Linux, `--install` prints the equivalent systemd user unit and the commands to enable it.
+
+Plot from the JSONL without the dashboard:
+
+```sh
+jq -r 'select(.kind=="request") | [.ts, .provider, .ttft_ms, .tokens_per_s] | @tsv' logs/metrics.jsonl
+uv run --with pandas python -c "import pandas as pd; d = pd.read_json('logs/metrics.jsonl', lines=True); print(d[d.kind == 'request'].groupby('model').ttft_ms.describe())"
+```
+
 ## Evaluation
 
 ```sh
@@ -155,22 +225,30 @@ uv run hci -p anthropic eval  # same, on Claude
 
 Without `--jev`, eval never calls Jev, even when the key is set; `ask`, `chat` and `serve` do use it.
 
-Cases live in `tests/cases/*.json` and follow `tests/cases/schema.json`: a question, optional scenario, history and
-facts, and what to expect (chunk ids that must or must not be retrieved, which chunk comes first, words the answer
-must or must not contain). `xfail` marks a known weakness.
+Each file in `tests/cases/` is a JSON list of cases. The format is defined in `tests/cases/schema.json`, and pytest
+validates every file against it. A case gives a question, an optional scenario, history and facts, and what to expect:
+chunk ids that must or must not be in the context (pytest checks that each one names an existing file and a real
+chunk), chunks that must come first, and words the answer must all contain, at least one of
+(`answer_contains_any`), or must not contain. `unanswerable` marks a question the records do not answer: the answer
+must refuse (it contains one of the refusal phrases of `hci/constants.py` and none of `answer_excludes`, which always
+wins). With `--jev`, such a case passes retrieval when Jev refuses rather than on the pinned chunks, so a pinning
+regression on it shows only in runs without the judge; when Jev refuses, the streamed `NOT_FOUND` is not scored as an
+answer, so one Jev decision counts once. `xfail` marks a known weakness, and the case still runs.
 
-Author run of `hci eval` on an M4 Pro (MLX, 45 cases), recorded on 2026-10-23 (commit b2d7654). Gemma is
-`mlx-community/gemma-4-e4b-it-4bit`, set with `-m`. Retrieval does not depend on the generator, so those two rows
-are the same for both:
+Author run of `hci eval` on an M4 Pro, 2026-10-23 at `f2c06c9` (45 cases, 21 with answer checks; with `--jev` the 4 out-of-scope
+cases Jev refused are scored on retrieval only, so 17 answers are checked):
 
-| Metric | Qwen3-4B (default) | Gemma 4 E4B (tested, not kept) |
-| --- | --- | --- |
-| Retrieval pass rate | 84 % (7 paraphrase misses marked `xfail`) | 84 % |
-| Recall of expected chunks | 74 % | 74 % |
-| Answer pass rate | 95 % | 81 % (before the Markdown prompt) |
-| Retrieval latency (p50) | 7 ms | 6 ms |
-| First token (p50) | 1.25 s | 0.8 s |
-| Generation | 85 tokens/s | 67 tokens/s |
+| Metric | Qwen3-4B (MLX, default) | Claude (`-p anthropic`) | Claude + Jev (`-p anthropic eval --jev`) |
+| --- | --- | --- | --- |
+| Retrieval pass rate | 84 % (7 paraphrase misses marked `xfail`) | 84 % | 84 % |
+| Recall of expected chunks | 74 % | 74 % | 74 % |
+| Answer pass rate | 95 % | 100 % | 100 % |
+| Retrieval latency (p50) | 7 ms | 7 ms | 246 ms |
+| First token (p50) | 1.5 s | 4.6 s | 5.0 s |
+| Generation | 84 tokens/s | streamed in chunks | streamed in chunks |
+
+Gemma 4 E4B (`mlx-community/gemma-4-e4b-it-4bit`) was tested and not kept: same retrieval, 81 % answers (before the Markdown prompt), 0.8 s first token,
+67 tokens/s.
 
 ## Development
 
