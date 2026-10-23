@@ -36,7 +36,10 @@ def test_rag(tmp_path, monkeypatch):
     assert any(c.source == "fact" for c in rag.retrieve("anything", scenario=0))
 
     seen = {}
-    gen = lambda system, user: iter([seen.setdefault("user", user)])
+
+    def gen(system, user):
+        return iter([seen.setdefault("user", user)])
+
     assert "Question: why C?" in text_only(rag.answer("why C?", gen, scenario=0))
     assert "[1] (path)" in seen["user"]
 
