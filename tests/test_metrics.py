@@ -256,3 +256,66 @@ class TestCost:
         metrics.fill_cost(current.request)
         # Assert
         assert (current.request.cost_usd, current.request.price_unknown) == (0.012, True)
+
+
+def test_unserializable_event_is_dropped_not_raised():
+    """An event that cannot be written as JSON is logged and dropped; the answer goes on."""
+    # Act
+    metrics.emit(ToolEvent(tool=object()))  # ty: ignore[invalid-argument-type]
+    # Assert
+    assert not get_settings().metrics_file.exists()
+
+
+def test_timestamp_is_taken_under_the_write_lock(monkeypatch):
+    """`ts` is read while the write lock is held, so timestamps follow the file order."""
+    # Arrange
+    held = []
+    record = metrics.record
+    monkeypatch.setattr(
+        metrics, "record", lambda event, scope: held.append(metrics._write_lock.locked()) or record(event, scope)
+    )
+    # Act
+    metrics.emit(ToolEvent(tool="a"))
+    # Assert
+    assert held == [True]
+
+
+class TestReadCache:
+    def test_unchanged_file_is_not_parsed_again(self, monkeypatch):
+        """A poll on an unchanged file reuses the parsed events; a new line makes it parse again."""
+        # Arrange
+        metrics.emit(ToolEvent(tool="a"))
+        calls = []
+        parse = metrics._parse
+        monkeypatch.setattr(metrics, "_parse", lambda text: calls.append(1) or parse(text))
+        # Act
+        metrics.read()
+        metrics.read()
+        metrics.emit(ToolEvent(tool="b"))
+        events = metrics.read()
+        # Assert
+        assert len(calls) == 2
+        assert [e["tool"] for e in events] == ["a", "b"]
+
+    def test_file_rotated_away_mid_read_gives_nothing(self, monkeypatch):
+        """A file that disappears between its stat and its read (another process rotated it) is skipped."""
+        # Arrange
+        metrics.emit(ToolEvent(tool="a"))
+        monkeypatch.setattr(
+            metrics.Path, "read_text", lambda self, **kwargs: (_ for _ in ()).throw(FileNotFoundError())
+        )
+        # Act / Assert
+        assert metrics.read() == []
+
+
+def test_rotation_raced_by_another_process_still_writes(monkeypatch):
+    """When another process rotated the file first (replace finds nothing), the event is still appended."""
+    # Arrange
+    monkeypatch.setenv("HCI_METRICS_MAX_MB", "0.0001")
+    get_settings.cache_clear()
+    metrics.emit(ToolEvent(tool="a"))
+    monkeypatch.setattr(metrics.Path, "replace", lambda self, target: (_ for _ in ()).throw(FileNotFoundError()))
+    # Act
+    metrics.emit(ToolEvent(tool="b"))
+    # Assert
+    assert [e["tool"] for e in _read(get_settings().metrics_file)] == ["a", "b"]

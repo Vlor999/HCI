@@ -27,6 +27,7 @@ from hci.types import CostBreakdown, MetricEvent, MetricScope, RequestEvent, Too
 # interleaving. A queue to one writer if lines ever get large.
 _write_lock = threading.Lock()
 _scope: contextvars.ContextVar[MetricScope | None] = contextvars.ContextVar("metric_scope", default=None)
+_parsed: dict[Path, tuple[tuple[int, int], list[dict]]] = {}  # path -> ((mtime_ns, size), events)
 
 
 def percentile(values: Sequence[float], q: float) -> float | None:
@@ -85,7 +86,7 @@ def fill_timing(request: RequestEvent, start: float, text_times: list[float], en
 
 
 def record(event: MetricEvent, scope: MetricScope | None) -> dict:
-    """The JSON record of an event: kind, timestamp, request, conversation and source, then the event's fields.
+    """The JSON record of an event: kind, timestamp (now), request, conversation and source, then its fields.
 
     Args:
         event: The event.
@@ -96,7 +97,7 @@ def record(event: MetricEvent, scope: MetricScope | None) -> dict:
     """
     envelope = {
         "kind": event.kind,
-        "ts": round(time.time(), 3),
+        "ts": round(time.time(), 6),
         "request_id": scope.request_id if scope else None,
         "conversation_id": scope.conversation_id if scope else None,
         "source": scope.source if scope else None,
@@ -105,7 +106,11 @@ def record(event: MetricEvent, scope: MetricScope | None) -> dict:
 
 
 def emit(event: MetricEvent) -> None:
-    """Append an event to the metrics file, rotating it first when full. A disk error is logged, never raised.
+    """Append an event to the metrics file, rotating it first when full.
+
+    Metrics never break an answer: a disk error or an event that cannot be serialized is logged and dropped. The
+    timestamp is taken under the write lock, so timestamps follow the file order and the page's `since` cursor
+    never skips a line.
 
     Args:
         event: The event; it joins the current answer's request id, if any.
@@ -113,16 +118,16 @@ def emit(event: MetricEvent) -> None:
     settings = get_settings()
     if not settings.metrics_enabled:
         return
-    line = json.dumps(record(event, _scope.get())) + "\n"
-    path = settings.metrics_file
+    scope, path = _scope.get(), settings.metrics_file
     try:
         with _write_lock:
+            line = json.dumps(record(event, scope)) + "\n"
             path.parent.mkdir(parents=True, exist_ok=True)
             _rotate(path, settings.metrics_max_mb)
             with path.open("a", encoding="utf-8") as f:
                 f.write(line)
-    except OSError as e:
-        logger.warning("Could not write metrics to {}: {!r}", path, e)
+    except (OSError, TypeError, ValueError) as e:
+        logger.warning("Metric event dropped ({}): {!r}", path, e)
 
 
 def _backup(path: Path) -> Path:
@@ -130,8 +135,14 @@ def _backup(path: Path) -> Path:
 
 
 def _rotate(path: Path, max_mb: float) -> None:
-    if path.exists() and path.stat().st_size >= max_mb * 1024 * 1024:
-        path.replace(_backup(path))
+    # ponytail: the lock is per process; two processes rotating at once can still lose one backup. A file lock
+    # (fcntl.flock) if several writers ever share a file at its limit.
+    try:
+        full = path.stat().st_size >= max_mb * 1024 * 1024  # checked under the lock, right before the replace
+        if full:
+            path.replace(_backup(path))
+    except FileNotFoundError:  # not created yet, or rotated away by another process in between
+        return
 
 
 def read(since: float | None = None, limit: int | None = None) -> list[dict]:
@@ -145,15 +156,30 @@ def read(since: float | None = None, limit: int | None = None) -> list[dict]:
         The events; malformed lines are skipped.
     """
     path = get_settings().metrics_file
-    events = [e for p in (_backup(path), path) if p.exists() for e in _parse(p)]
+    events = [e for p in (_backup(path), path) for e in _cached(p)]
     if since is not None:
         events = [e for e in events if e.get("ts", 0) > since]
     return events[-limit:] if limit else events
 
 
-def _parse(path: Path) -> Iterator[dict]:
-    # ponytail: reads the whole file per call, bounded by metrics_max_mb; seek from the end if polling gets slow
-    for line in path.read_text(encoding="utf-8").splitlines():
+def _cached(path: Path) -> list[dict]:
+    """The file's events, parsed again only when its (mtime, size) changed; none when it does not exist."""
+    try:
+        stat = path.stat()
+        version = (stat.st_mtime_ns, stat.st_size)
+        if path in _parsed and _parsed[path][0] == version:
+            return _parsed[path][1]
+        events = list(_parse(path.read_text(encoding="utf-8")))
+    except FileNotFoundError:  # rotated or not created yet
+        return []
+    _parsed[path] = (version, events)
+    return events
+
+
+def _parse(text: str) -> Iterator[dict]:
+    # ponytail: the current file is parsed again whenever it grows, bounded by metrics_max_mb; parse only the new
+    # bytes from the last offset if polling gets slow
+    for line in text.splitlines():
         try:
             event = json.loads(line)
         except ValueError:
