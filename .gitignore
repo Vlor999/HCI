@@ -14,3 +14,5 @@ data/facts.json
 *.log
 *.out
 *.toc
+*_review.md
+.worktrees/
