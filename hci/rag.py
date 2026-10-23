@@ -31,14 +31,23 @@ class RAG:
         corpus.add_fact(text, scenario)
         self.reload()
 
-    def retrieve(self, question: str, scenario: int | None = None, k: int = 6) -> list[corpus.Chunk] | None:
-        """Current scenario steps and facts are always in context; the rest is searched. None = not answerable."""
+    def retrieve(
+        self, question: str, scenario: int | None = None, history: Sequence[tuple[str, str]] = (), k: int = 6
+    ) -> list[corpus.Chunk] | None:
+        """Pinned: the scenario's steps and facts, then facts that apply everywhere. Other scenarios are never searched.
+        None = not answerable."""
         if corpus.stamp() != self.stamp:
             self.reload()
-        pinned = [c for c in self.chunks if c.source in ("path", "fact") and c.scenario == scenario]
-        hits = self.index.search(question, k, skip={c.id for c in pinned})
+        scoped = [c for c in self.chunks if c.source in ("path", "fact")]
+        pinned = [c for c in scoped if c.scenario == scenario] + [
+            c for c in scoped if c.source == "fact" and c.scenario is None and scenario is not None
+        ]
+        other = {c.id for c in scoped if scenario is not None and c.scenario not in (None, scenario)}
+        # follow-ups like "what does it compare it against?" only make sense with the previous question
+        query = f"{history[-1][0]} {question}" if history else question
+        hits = self.index.search(query, k, skip=other | {c.id for c in pinned})
         if self.judge:
-            keep, answerable = jev.judge(question, pinned + hits)
+            keep, answerable = jev.judge(query, pinned + hits)
             if not answerable:
                 return None
             hits = [c for c in hits if c.id in keep]
@@ -62,7 +71,7 @@ class RAG:
     def answer(
         self, question: str, llm: Generate, scenario: int | None = None, history: Sequence[tuple[str, str]] = ()
     ) -> Iterator[str]:
-        ctx = self.retrieve(question, scenario)
+        ctx = self.retrieve(question, scenario, history)
         if ctx is None:
             yield NOT_FOUND
             return

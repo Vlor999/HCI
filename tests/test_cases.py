@@ -38,7 +38,7 @@ def context(case, tmp_path, monkeypatch) -> list[str]:
     rag = RAG(embed=embedder(), judge=False)
     for fact in case.get("facts", []):
         rag.add_fact(fact["text"], fact.get("scenario"))
-    return [c.id for c in rag.retrieve(case["question"], case.get("scenario"))]
+    return [c.id for c in rag.retrieve(case["question"], case.get("scenario"), case.get("history", []))]
 
 
 @pytest.mark.parametrize("case", [c for _, c in CASES], ids=[f"{f}/{c['id']}" for f, c in CASES])

@@ -11,8 +11,9 @@ question ─► hybrid retrieval ─► Jev judge (optional) ─► grounded pro
 ```
 
 - **Retrieval**: dense embeddings (`BAAI/bge-small-en-v1.5`) and BM25, fused with reciprocal rank fusion. Exact
-  terms like path names come from BM25, paraphrases from embeddings. The current scenario's steps and facts are
-  always in context.
+  terms like path names come from BM25, paraphrases from embeddings. The current scenario's steps and facts, plus
+  facts that apply everywhere, are always in context. Other scenarios are never searched. A follow-up question is
+  searched together with the previous one.
 - **Jev** ([TypeSafe AI](https://docs.typesafe.ai)): when `TYPESAFE_API_KEY` is set, one call scores every retrieved
   passage and checks whether the question can be answered at all. Below the threshold, the LLM is skipped and the
   app says it doesn't know.
@@ -88,12 +89,12 @@ or must not contain. `xfail` marks a known weakness, and the case still runs.
 
 | Metric | Value |
 | --- | --- |
-| Retrieval pass rate | 71 % (13 known weaknesses marked `xfail`) |
-| Recall of expected chunks | 66 % |
-| Answer pass rate | 86 % |
+| Retrieval pass rate | 84 % (7 paraphrase misses marked `xfail`) |
+| Recall of expected chunks | 74 % |
+| Answer pass rate | 90 % |
 | Retrieval latency (p50) | 7 ms |
-| First token (p50) | 1.3 s |
-| Generation | 84 tokens/s |
+| First token (p50) | 1.25 s |
+| Generation | 85 tokens/s |
 | Model load | 0.6 s LLM + 2.4 s embedder |
 
 The report and slides are in `doc/robot-explain-yourself/`. The first version (Ollama, no retrieval) is in the git
