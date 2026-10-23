@@ -1,7 +1,7 @@
 # HCI: Robot, explain yourself
 
-A RAG that explains why a forest robot picked a path. It answers from the robot's own records: past paths, the
-operating manual, past corrections and operator updates.
+A RAG that explains why a forest robot picked a path. It answers from the robot's own records: past paths,
+documents (the operating manual, reports, uploads), past corrections and operator updates.
 
 ```
 question ─► hybrid retrieval ─► Jev judge (optional) ─► grounded prompt ─► LLM ─► answer with [n] citations
@@ -103,12 +103,58 @@ front.
 | File | Indexed as |
 | --- | --- |
 | `data/paths.json` | one chunk per path step, with travel time |
-| `data/documents/sample_manual.md` | one chunk per manual section |
+| `data/documents/**` | documents (`.md`, `.txt`, `.pdf`, `.docx`, `.pages`), cut as below; the manual is one of them |
 | `data/corrections/*.md` | past mistakes with the expected answer |
 | `data/explanations/sample_explanations.json` | example explanations |
 | `data/facts.json` | operator updates (git-ignored) |
 
-The index is rebuilt in memory at startup. There are only a few dozen chunks, so a vector database isn't needed yet.
+Chunk ids are explicit file references, so a test or a citation points at a real file: `data/paths.json#0/A`
+(scenario 0, path A), `data/documents/sample_manual.md#3` (third chunk of the manual, counted from 1),
+`data/corrections/correction_1.md`, `data/explanations/sample_explanations.json#4` (array index). Operator facts
+keep `fact-<n>`: the facts file is runtime state outside git.
+
+The index is rebuilt in memory at startup, and again when a file under `data/`, the documents folder or the facts
+file changes, so a running server picks up new documents without a restart. There are only a few dozen chunks, so a vector database isn't needed yet.
+
+## Documents
+
+Drop files into `data/documents/` (subfolders included), or upload them from the phone with **Add document**.
+Supported: Markdown, plain text, PDF (`pypdf`), Word `.docx` (`python-docx`) and Apple Pages. Hidden files and other
+types are ignored; a file that fails to parse is skipped with a warning and never breaks the index.
+
+Segmentation goes structure first, then size:
+
+| Format | Sections | Paragraphs |
+| --- | --- | --- |
+| `.md` | `#` headings; the heading path (`Robot manual > 1. Energy Management`) is the section title | blank lines |
+| `.docx` | `Title` and `Heading <n>` paragraph styles, same heading path | one per DOCX paragraph |
+| `.pdf` | one per page (`page 3`) | blank lines in the extracted text |
+| `.txt` | none | blank lines |
+| `.pages` | exported to PDF, then as PDF | as PDF |
+
+Inside a section, sentences are packed into chunks of at most `HCI_CHUNK_WORDS` words (default 220, about 300
+tokens, under the 512-token limit of `bge-small`), and the next chunk repeats up to `HCI_CHUNK_OVERLAP_WORDS` words
+(default 40) of whole trailing sentences. A chunk never spans two sections, and a sentence is only cut when it is
+longer than a chunk by itself. Every chunk starts with its file name and section or page
+(`report.pdf, page 3: ...`), so the model can say where an answer comes from.
+
+`.pages` files are a zip of Apple's private protobuf format. On macOS with Pages installed, they are exported to a
+temporary PDF through the Pages app (`osascript`; the first run may ask to allow automation of Pages). Elsewhere the
+file is skipped with a warning: export it from Pages as PDF or DOCX and add that instead.
+
+Phone uploads (`POST /api/documents`, multipart, token required) land in `data/documents/uploads/` (git-ignored).
+The file name is reduced to its base name (no folders, no leading dot), and a name already taken gets `-1`, `-2`...
+An unsupported type gives 415, a file above `HCI_MAX_UPLOAD_MB` (default 20) gives 413, and a file with no readable
+text (a scanned PDF, say) gives 422 and is not kept. `GET /api/documents` lists the documents with their chunk
+counts.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `HCI_DOCUMENTS_DIR` | `data/documents` | folder indexed recursively; uploads go to its `uploads/` subfolder |
+| `HCI_CHUNK_WORDS` | `220` | max words per document chunk |
+| `HCI_CHUNK_OVERLAP_WORDS` | `40` | overlap between chunks of a section (must be below `HCI_CHUNK_WORDS`) |
+| `HCI_MAX_UPLOAD_MB` | `20` | largest upload |
+| `HCI_PAGES_EXPORT_TIMEOUT` | `60` | seconds for the Pages export |
 
 ## Test and evaluate
 
@@ -123,7 +169,8 @@ runner uses the real embedder (downloaded once). CI runs `uv sync --locked` then
 
 Each file in `tests/cases/` is a JSON list of cases. The format is defined in `tests/cases/schema.json`, and pytest
 validates every file against it. A case gives a question, an optional scenario, history and facts, and what to expect:
-chunk ids that must or must not be in the context, chunks that must come first, and words the answer must contain
+chunk ids that must or must not be in the context (pytest checks that each one names an existing file and a real
+chunk), chunks that must come first, and words the answer must contain
 or must not contain. `xfail` marks a known weakness, and the case still runs.
 
 `hci eval` on an M4 Pro (MLX, 45 cases):
