@@ -147,13 +147,63 @@ class TestFormats:
         # Act / Assert
         assert _texts(path) == ["log.pdf, page 1: Bridge closed.", "log.pdf, page 2: Ford is shallow."]
 
-    def test_ligatures_become_letters(self, docs_dir: Path):
-        """Ligatures, as PDF exports often produce, are normalised so `floods` matches `ﬂoods`."""
+    def test_pdf_ligatures_become_letters(self, docs_dir: Path):
+        """Ligatures in PDF text (`ﬂ`) are normalised, so `floods` matches for BM25."""
+        # Arrange
+        path = docs_dir / "log.pdf"
+        path.write_bytes(b"%PDF")
+        page = MagicMock(**{"extract_text.return_value": "Path Q \ufb02oods."})
+        # Act
+        with patch("hci.documents.PdfReader", return_value=MagicMock(pages=[page])):
+            texts = _texts(path)
+        # Assert
+        assert texts == ["log.pdf, page 1: Path Q floods."]
+
+    def test_text_symbols_are_kept(self, docs_dir: Path):
+        """Outside PDFs, text is not normalised: units and fractions stay as written."""
         # Arrange
         path = docs_dir / "notes.txt"
-        path.write_text("Path Q \ufb02oods.")
+        path.write_text("Area 5 m², ½ full.")
         # Act / Assert
-        assert _texts(path) == ["notes.txt: Path Q floods."]
+        assert _texts(path) == ["notes.txt: Area 5 m², ½ full."]
+
+    def test_bom_is_dropped(self, docs_dir: Path):
+        """A UTF-8 byte order mark does not end up in the first paragraph."""
+        # Arrange
+        path = docs_dir / "notes.txt"
+        path.write_bytes(b"\xef\xbb\xbfPath B is dry.")
+        # Act / Assert
+        assert _texts(path) == ["notes.txt: Path B is dry."]
+
+    def test_non_utf8_text_warns(self, docs_dir: Path, warnings: list[str]):
+        """A Latin-1 file is read with replacement characters and a warning to save it as UTF-8."""
+        # Arrange
+        path = docs_dir / "notes.txt"
+        path.write_bytes("café noir".encode("latin-1"))
+        # Act
+        _texts(path)
+        # Assert
+        assert any("save it as UTF-8" in w for w in warnings)
+
+    def test_docx_tables_are_read_in_body_order(self, docs_dir: Path):
+        """DOCX table rows are indexed where they stand, between the paragraphs around them."""
+        # Arrange
+        document = docx.Document()
+        document.add_paragraph("Before.")
+        table = document.add_table(rows=1, cols=2)
+        table.cell(0, 0).text, table.cell(0, 1).text = "Path C", "5.4 min"
+        document.add_paragraph("After.")
+        path = docs_dir / "times.docx"
+        document.save(str(path))
+        # Act / Assert
+        assert _texts(path) == ["times.docx: Before. Path C | 5.4 min After."]
+
+    def test_docx_title_stays_in_section_path(self, docs_dir: Path):
+        """A DOCX Title stays above its Heading 1 sections in the section path."""
+        # Arrange
+        path = _make_docx(docs_dir / "r.docx", [("Title", "Report"), ("Heading 1", "Trails"), ("Normal", "Paved.")])
+        # Act / Assert
+        assert _texts(path) == ["r.docx, Report > Trails: Paved."]
 
 
 class TestPages:

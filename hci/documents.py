@@ -15,6 +15,7 @@ from collections.abc import Callable, Iterable
 from pathlib import Path
 
 import docx
+from docx.table import Table
 from loguru import logger
 from pypdf import PdfReader
 
@@ -231,52 +232,69 @@ def _tail(units: list[str], overlap: int) -> list[str]:
 
 
 def _paragraphs(text: str) -> list[str]:
-    """Blank-line paragraphs, whitespace collapsed; NFKC turns PDF ligatures (`ﬂ`) back into letters for BM25."""
-    text = unicodedata.normalize("NFKC", text)
     return [" ".join(p.split()) for p in PARAGRAPH_BREAK.split(text) if p.strip()]
 
 
-def _sections(blocks: Iterable[tuple[int, str]]) -> list[DocumentSection]:
-    """Group `(heading level, text)` blocks into sections titled by their heading path; level 0 is body text."""
+def _sections(blocks: Iterable[tuple[int | None, str]]) -> list[DocumentSection]:
+    """Group `(heading level, text)` blocks into sections titled by their heading path; level None is body text.
+
+    A heading closes every open heading of its level or deeper, so skipped levels and repeated top levels both work.
+    """
     sections, path, body = [], [], []
     for level, text in blocks:
-        if not level:
+        if level is None:
             body.append(text)
             continue
-        sections.append(DocumentSection(" > ".join(path), _paragraphs("\n".join(body))))
-        path, body = [*path[: level - 1], text.strip()], []
-    sections.append(DocumentSection(" > ".join(path), _paragraphs("\n".join(body))))
+        sections.append(DocumentSection(" > ".join(t for _, t in path), _paragraphs("\n".join(body))))
+        path, body = [*[(lv, t) for lv, t in path if lv < level], (level, text.strip())], []
+    sections.append(DocumentSection(" > ".join(t for _, t in path), _paragraphs("\n".join(body))))
     return [s for s in sections if s.paragraphs]
 
 
-def _markdown_blocks(text: str) -> Iterable[tuple[int, str]]:
+def _markdown_blocks(text: str) -> Iterable[tuple[int | None, str]]:
     # ponytail: a `#` line inside a code fence reads as a heading; track fences if code-heavy docs show up
     for line in text.splitlines():
         m = MARKDOWN_HEADING.match(line)
-        yield (len(m[1]), m[2]) if m else (0, line)
+        yield (len(m[1]), m[2]) if m else (None, line)
 
 
-def _docx_level(style_name: str) -> int:
-    """Heading level of a DOCX paragraph style: `Title` 1, `Heading <n>` n, anything else 0 (body)."""
-    if style_name == "Title":
-        return 1
-    level = style_name.removeprefix("Heading ")
-    return int(level) if level != style_name and level.isdigit() else 0
+def _read_text(path: Path) -> str:
+    """UTF-8 text without its BOM; undecodable bytes become U+FFFD, with a warning to re-save the file as UTF-8."""
+    text = path.read_text(encoding="utf-8-sig", errors="replace")
+    if "\ufffd" in text:
+        logger.warning("{} is not valid UTF-8: unreadable characters were replaced; save it as UTF-8", path)
+    return text
 
 
 def _markdown_sections(path: Path) -> list[DocumentSection]:
-    return _sections(_markdown_blocks(path.read_text(errors="replace")))
+    return _sections(_markdown_blocks(_read_text(path)))
 
 
 def _text_sections(path: Path) -> list[DocumentSection]:
-    return [DocumentSection("", paragraphs)] if (paragraphs := _paragraphs(path.read_text(errors="replace"))) else []
+    return [DocumentSection("", paragraphs)] if (paragraphs := _paragraphs(_read_text(path))) else []
+
+
+def _docx_level(style_name: str) -> int | None:
+    """Heading level of a DOCX paragraph style: `Title` 0, `Heading <n>` n, anything else None (body)."""
+    if style_name == "Title":
+        return 0
+    level = style_name.removeprefix("Heading ")
+    return int(level) if level != style_name and level.isdigit() else None
+
+
+def _docx_blocks(path: Path) -> Iterable[tuple[int | None, str]]:
+    """Paragraphs and table rows in body order; a blank line after each keeps them apart in `_paragraphs`."""
+    for item in docx.Document(str(path)).iter_inner_content():
+        if isinstance(item, Table):
+            for row in item.rows:  # a merged cell repeats in each row it spans: keep it once per row
+                yield None, " | ".join(dict.fromkeys(cell.text for cell in row.cells)) + "\n"
+        else:
+            yield _docx_level(item.style.name if item.style else ""), item.text + "\n"
 
 
 def _docx_sections(path: Path) -> list[DocumentSection]:
     _check_docx_size(path)
-    paragraphs = docx.Document(str(path)).paragraphs
-    # a blank line after each body paragraph keeps DOCX paragraphs apart in `_paragraphs`
-    return _sections((_docx_level(p.style.name if p.style else ""), p.text + "\n") for p in paragraphs)
+    return _sections(_docx_blocks(path))
 
 
 def _pdf_sections(path: Path) -> list[DocumentSection]:
@@ -286,7 +304,7 @@ def _pdf_sections(path: Path) -> list[DocumentSection]:
         raise ValueError(f"it has {len(pages)} pages, above {limit} (HCI_MAX_PDF_PAGES)")
     sections, chars = [], 0
     for n, page in enumerate(pages, 1):
-        text = page.extract_text() or ""
+        text = unicodedata.normalize("NFKC", page.extract_text() or "")  # ligatures (`ﬂ`) back into letters
         chars += len(text)
         _check_text_size(chars)  # page by page, so a huge PDF stops early
         sections.append(DocumentSection(f"page {n}", _paragraphs(text)))
