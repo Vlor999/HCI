@@ -9,6 +9,7 @@ import pytest
 
 from hci import evaluate, jev
 from hci.config import get_settings
+from hci.constants import NOT_FOUND
 
 FACT_CASE = {
     "id": "with-fact",
@@ -150,3 +151,24 @@ def test_curly_apostrophes_match_straight_ones(answer, marker):
     case = {"expect": {"answer_contains_any": [marker]}}
     # Act / Assert
     assert evaluate._answer_ok(answer, case)
+
+
+OUT_OF_SCOPE = {c["id"]: c for c in evaluate.load_cases() if "out-of-scope" in c.get("tags", [])}
+
+
+@pytest.mark.parametrize(
+    ("case_id", "answer", "passes"),
+    [
+        ("oos-nonexistent-path", "Path D takes 12 s, but I can't confirm it.", False),
+        ("oos-nonexistent-path", "Path D is about 200 m. I don't know more from the records.", False),
+        ("oos-stock-market", "The market will go up, I cannot be sure.", False),
+        ("oos-capital-of-france", "Paris, but I don't know it from the robot's records.", False),
+        ("oos-stock-market", "I can't say whether the market will go up tomorrow from the robot's records.", True),
+        ("oos-nonexistent-path", "Path D is not mentioned in the context. Paths A, B and C are.", True),
+        ("oos-capital-of-france", NOT_FOUND, True),
+    ],
+)
+def test_out_of_scope_answers(case_id, answer, passes):
+    """A refusal passes even when it restates the question; a hedged or fabricated answer fails."""
+    # Act / Assert
+    assert evaluate._answer_ok(answer, OUT_OF_SCOPE[case_id]) is passes

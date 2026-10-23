@@ -73,13 +73,16 @@ def _fold(text: str) -> str:
 
 
 def _answer_ok(text: str, case: dict) -> bool:
-    """Whether an answer meets the case's answer checks; an unanswerable case must refuse by default."""
+    """Whether an answer meets the case's answer checks; an unanswerable case must refuse by default.
+
+    `answer_excludes` wins: a refusal phrase never rescues an answer that also states what the case excludes.
+    """
     expect, text = case["expect"], _fold(text)
+    if any(_fold(s) in text for s in expect.get("answer_excludes", [])):
+        return False
     any_of = expect.get("answer_contains_any", REFUSAL_MARKERS if case.get("unanswerable") else [])
-    return (
-        all(_fold(s) in text for s in expect.get("answer_contains", []))
-        and (not any_of or any(_fold(s) in text for s in any_of))
-        and not any(_fold(s) in text for s in expect.get("answer_excludes", []))
+    return all(_fold(s) in text for s in expect.get("answer_contains", [])) and (
+        not any_of or any(_fold(s) in text for s in any_of)
     )
 
 

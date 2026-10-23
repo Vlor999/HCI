@@ -43,17 +43,27 @@ say you don't know from the robot's records and offer what the records can answe
 )
 
 NOT_FOUND = "I can't answer that from the robot's records."
-# an answer refuses when it contains one of these (lowercase); covers `NOT_FOUND`, the AGENT_SYSTEM wording and the
-# local Qwen3 phrasings ("Path D is not mentioned", "the context does not contain any information")
+# an answer refuses when it contains one of these phrases (lowercase): `NOT_FOUND`, the AGENT_SYSTEM wording, Claude's
+# "I can't say whether..." and the local Qwen3 phrasings ("Path D is not mentioned", "does not contain any
+# information"). Multi-word on purpose: a bare "can't" also hedges a fabricated answer ("..., but I can't confirm it").
 REFUSAL_MARKERS = (
     "don't know",
     "do not know",
+    "can't answer",
+    "cannot answer",
+    "can't say",
+    "cannot say",
+    "can't tell",
+    "cannot tell",
+    "can't predict",
+    "cannot predict",
     "no record",
-    "not in the",
+    "not in the records",
+    "not in the robot's records",
+    "records don't",
+    "records do not",
     "don't cover",
     "do not cover",
-    "can't",
-    "cannot",
     "not mentioned",
     "no information",
     "not contain",
