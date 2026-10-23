@@ -175,7 +175,9 @@
 
   async function loadDocuments() {
     const r = await fetch("/api/documents", { headers }).catch(() => null);
-    if (!r || !r.ok) return;
+    if (!r) return docStatus("Could not list documents: server unreachable.", true);
+    if (!r.ok) return docStatus(r.status === 401 ? "Could not list documents: open the link printed by `hci serve`."
+                                                 : `Could not list documents (HTTP ${r.status}).`, true);
     $("docs").replaceChildren(...(await r.json()).map(d => {
       const li = document.createElement("li");
       li.textContent = `${d.name}: ${d.chunks ? d.chunks + " passages" : "not readable"}`;
