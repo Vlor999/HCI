@@ -43,6 +43,7 @@
   .err { color: #c0392b; }
   small { color: var(--muted); }
   .steps { color: var(--muted); font-size: .85rem; white-space: pre-line; }
+  .docs { margin: 8px 0 0; padding-left: 20px; color: var(--muted); font-size: .85rem; overflow-wrap: anywhere; }
   .proposal { border: 1px dashed var(--accent); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
 </style>
 </head>
@@ -59,6 +60,10 @@
   <button id="fact" class="ghost">Save as fact</button>
 </div>
 <p><small id="status"></small></p>
+<button id="add-doc" class="ghost">Add document</button>
+<input type="file" id="doc-file" hidden>
+<p><small id="doc-status" role="status"></small></p>
+<ul id="docs" class="docs"></ul>
 <script src="/vendor/marked.min.js"></script>
 <script src="/vendor/purify.min.js"></script>
 <script>
@@ -75,6 +80,8 @@
     $("scenario").add(new Option("No current scenario", ""));
     info.scenarios.forEach((d, i) => $("scenario").add(new Option(`${i}: ${d}`, i)));
     info.providers.forEach(p => $("provider").add(new Option(p, p)));
+    $("doc-file").accept = info.document_types.join(",");
+    loadDocuments();
   }).catch(e => $("status").textContent = e === 401 ? "Open the link printed by `hci serve`." : "Server unreachable.");
 
   $("ask").onclick = async () => {
@@ -162,6 +169,39 @@
     catch { throw new Error("Could not save fact: server unreachable."); }
     if (!r.ok) throw new Error(`Could not save fact (HTTP ${r.status}).`);
   }
+
+  // Documents: XMLHttpRequest rather than fetch, for upload progress. Server text only goes through textContent.
+  function docStatus(text, error = false) { $("doc-status").textContent = text; $("doc-status").classList.toggle("err", error); }
+
+  async function loadDocuments() {
+    const r = await fetch("/api/documents", { headers }).catch(() => null);
+    if (!r || !r.ok) return;
+    $("docs").replaceChildren(...(await r.json()).map(d => {
+      const li = document.createElement("li");
+      li.textContent = `${d.name}: ${d.chunks ? d.chunks + " passages" : "not readable"}`;
+      return li;
+    }));
+  }
+
+  function uploadDocument(file) {
+    const xhr = new XMLHttpRequest(), form = new FormData();
+    form.append("file", file);
+    xhr.open("POST", "/api/documents");
+    xhr.setRequestHeader("Authorization", headers.Authorization);
+    xhr.upload.onprogress = e => { if (e.lengthComputable) docStatus(`Uploading ${file.name}: ${Math.round(100 * e.loaded / e.total)} %`); };
+    xhr.onload = () => {
+      let body = {}; try { body = JSON.parse(xhr.responseText); } catch {}
+      if (xhr.status === 200) { docStatus(`Added ${body.name}: ${body.chunks} passages indexed.`); loadDocuments(); return; }
+      docStatus(`Upload failed: ${typeof body.detail === "string" ? body.detail : "HTTP " + xhr.status}`, true);
+    };
+    xhr.onerror = () => docStatus("Upload failed: server unreachable.", true);
+    xhr.onloadend = () => { $("add-doc").disabled = false; };
+    $("add-doc").disabled = true; docStatus(`Uploading ${file.name}…`);
+    xhr.send(form);
+  }
+
+  $("add-doc").onclick = () => $("doc-file").click();
+  $("doc-file").onchange = () => { const file = $("doc-file").files[0]; if (file) uploadDocument(file); $("doc-file").value = ""; };
 
   $("fact").onclick = async () => {
     const text = $("q").value.trim(); if (!text) return;
