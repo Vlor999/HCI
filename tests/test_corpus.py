@@ -108,3 +108,17 @@ def test_stamp_of_empty_data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     (tmp_path / "empty").mkdir()
     # Act / Assert
     assert corpus.stamp() == 0.0
+
+
+def test_stamp_follows_facts_file_outside_data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """A fact written by another process to a facts file outside data/ changes the stamp."""
+    # Arrange
+    monkeypatch.setattr(corpus, "DATA_DIR", tmp_path / "data")
+    (tmp_path / "data").mkdir()
+    before = corpus.stamp()
+
+    # Act
+    corpus.add_fact("Path C is closed.", 0)
+
+    # Assert
+    assert corpus.stamp() > before

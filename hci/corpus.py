@@ -15,12 +15,13 @@ from hci.types import RecordChunk
 
 
 def stamp() -> float:
-    """Latest change in data/, so a running server picks up edits made elsewhere.
+    """Latest change in data/ and the facts file, so a running server picks up edits made elsewhere.
 
     Returns:
-        The newest file modification time under `DATA_DIR`, 0.0 when it holds no file.
+        The newest modification time under `DATA_DIR` or of the facts file, 0.0 when none exists.
     """
-    return max((f.stat().st_mtime for f in DATA_DIR.rglob("*") if f.is_file()), default=0.0)
+    files = [f for f in DATA_DIR.rglob("*") if f.is_file()] + [get_settings().facts_file]
+    return max((f.stat().st_mtime for f in files if f.exists()), default=0.0)
 
 
 def scenarios() -> list[dict]:

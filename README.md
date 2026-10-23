@@ -43,9 +43,6 @@ uv run hci -s 0 chat          # follow-up questions and slash commands
 uv run hci fact -s 2 "Path Q is closed for maintenance"
 ```
 
-On Linux, `uv sync` installs CPU-only torch (`[tool.uv.sources]` in `pyproject.toml`, for CI). On a CUDA box, remove
-that `torch` source.
-
 Chat commands (type `/` for a fuzzy menu):
 
 | Command | Does |
