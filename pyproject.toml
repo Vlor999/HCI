@@ -39,3 +39,9 @@ line-length = 120
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--strict-markers"
+markers = ["embedder: loads the real sentence-transformers embedder (downloaded once, then cached)"]
+
