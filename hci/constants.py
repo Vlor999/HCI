@@ -43,7 +43,8 @@ say you don't know from the robot's records and offer what the records can answe
 )
 
 NOT_FOUND = "I can't answer that from the robot's records."
-# an answer refuses when it contains one of these (lowercase); `NOT_FOUND` and the AGENT_SYSTEM wording match
+# an answer refuses when it contains one of these (lowercase); covers `NOT_FOUND`, the AGENT_SYSTEM wording and the
+# local Qwen3 phrasings ("Path D is not mentioned", "the context does not contain any information")
 REFUSAL_MARKERS = (
     "don't know",
     "do not know",
@@ -53,6 +54,12 @@ REFUSAL_MARKERS = (
     "do not cover",
     "can't",
     "cannot",
+    "not mentioned",
+    "no information",
+    "not contain",
+    "n't contain",
+    "not provide",
+    "n't provide",
 )
 
 # --- Stream protocol ---------------------------------------------------------
