@@ -184,6 +184,9 @@ Conventions for contributors and agents are in `CLAUDE.md` and `.agents/rules/`.
 
 - The `HCI_TOKEN` holder is the operator: they can upload documents, which enter the grounding corpus without review,
   and approve facts.
+- `hci serve` binds `0.0.0.0` by default, so the whole LAN can reach it. Use `--host 127.0.0.1` for local only.
+- The token is random per process unless `HCI_TOKEN` is set, so a Home Screen link stops working after a restart.
+  Set `HCI_TOKEN` to keep it stable. The page stores the token in the browser's `localStorage`.
 - The server speaks plain HTTP. On a LAN the token and answers travel unencrypted: use a trusted network or a TLS
   reverse proxy.
 - API keys stay on the server and never reach the web page.
