@@ -36,6 +36,8 @@
   td.num, th.num { text-align: right; }
   .err { color: var(--err); }
   .wide { grid-column: 1 / -1; }
+  tr.pick { cursor: pointer; } tr.pick:hover td, tr.picked td { background: var(--bg); }
+  h3 { font-size: .85rem; margin: 12px 0 6px; }
 </style>
 </head>
 <body>
@@ -51,6 +53,7 @@
   </select>
   <small id="status" role="status"></small>
 </div>
+<div class="tiles" id="costTiles"></div>
 <div class="tiles" id="tiles"></div>
 <div class="grid">
   <div class="card"><h2>Time to first token (ms), per request</h2><div class="chart"><canvas id="ttft"></canvas></div></div>
@@ -61,6 +64,12 @@
   <div class="card"><h2>Jev latency (ms): total and network</h2><div class="chart"><canvas id="jev"></canvas></div></div>
   <div class="card"><h2>Retrieval latency (ms), Jev included</h2><div class="chart"><canvas id="retrieval"></canvas></div></div>
   <div class="card"><h2>Agent tools</h2><div class="scroll"><table id="tools"></table></div></div>
+  <div class="card"><h2>Cumulative cost (USD) per model</h2><div class="chart"><canvas id="costModel"></canvas></div></div>
+  <div class="card"><h2>Cost share by component (USD)</h2><div class="chart"><canvas id="costShare"></canvas></div></div>
+  <div class="card wide"><h2>Cost per answer (USD, last 40)</h2><div class="chart"><canvas id="costAnswer"></canvas></div></div>
+  <div class="card wide"><h2>Conversations by cost</h2><small>Click a conversation to see its messages.</small>
+    <div class="scroll"><table id="conversations"></table></div><h3 id="convTitle"></h3>
+    <div class="scroll"><table id="convMessages"></table></div></div>
   <div class="card wide"><h2>Last requests</h2><div class="scroll"><table id="requests"></table></div></div>
 </div>
 <script src="/vendor/chart.umd.min.js"></script>
@@ -73,7 +82,9 @@
   const $ = id => document.getElementById(id);
   const POLL_MS = 3000, KEEP = 20000, LAST_REQUESTS = 25, CLAUDE_REQUESTS = 40;
   const TTFT_BINS = [250, 500, 1000, 2000, 4000, 8000];  // ms upper bounds; the last bin is open
-  let events = [], lastTs = null;
+  let events = [], lastTs = null, picked = null;
+  const COMPONENTS = [["Claude input", "input_usd"], ["Claude output", "output_usd"], ["Claude cache write", "cache_write_usd"],
+                      ["Claude cache read", "cache_read_usd"], ["Jev", "jev_usd"]];
   const charts = {};
 
   const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -87,6 +98,8 @@
     return s[lo] + (s[Math.min(lo + 1, s.length - 1)] - s[lo]) * (r - lo);
   };
   const modelOf = e => `${e.provider || "?"} · ${e.model || "?"}`;
+  const usd = v => v === null || v === undefined ? "–" : "$" + Number(v).toFixed(v >= 1 ? 2 : 4);
+  const costOf = r => r.cost_usd === null || r.cost_usd === undefined ? null : r.cost_usd;
 
   function visible() {
     const source = $("source").value, win = Number($("window").value), since = Date.now() / 1000 - win;
@@ -149,11 +162,74 @@
       ["Jev tokens in / out", `${fmt(sum(jev, j => j.input_tokens))} / ${fmt(sum(jev, j => j.output_tokens))}`],
       ["Jev p50 (ms)", fmt(pct(jev.map(j => j.latency_ms), 50))],
     ];
-    $("tiles").replaceChildren(...items.map(([label, value, bad]) => {
+    tileRow("tiles", items);
+  }
+
+  function tileRow(id, items) {
+    $(id).replaceChildren(...items.map(([label, value, bad]) => {
       const t = document.createElement("div"), v = document.createElement("div"), l = document.createElement("div");
       t.className = "tile"; v.className = "v" + (bad ? " err" : ""); l.className = "l";
       v.textContent = value; l.textContent = label; t.append(v, l); return t;
     }));
+  }
+
+  function costTiles(all, requests, turns, jev) {
+    const now = new Date(), day = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() / 1000;
+    const since = ts => all.filter(r => r.ts >= ts).reduce((a, r) => a + (costOf(r) || 0), 0);
+    const priced = requests.filter(r => costOf(r) !== null);
+    const jevUnset = jev.some(j => j.price_unknown && !j.fallback);
+    const unknown = requests.filter(r => r.price_unknown).length;
+    tileRow("costTiles", [
+      ["Cost today", usd(since(day))],
+      ["Cost last 7 days", usd(since(Date.now() / 1000 - 7 * 86400))],
+      ["Cost, whole log", usd(since(0))],
+      ["Avg cost / answer", usd(priced.length ? sum(priced, costOf) / priced.length : null)],
+      ["Anthropic cost", usd(sum(turns, t => t.cost_usd))],
+      ["Jev cost", jevUnset && !sum(jev, j => j.cost_usd) ? "Jev price not set" : usd(sum(jev, j => j.cost_usd))],
+      ["Answers with an unknown price", fmt(unknown), unknown > 0],
+    ]);
+  }
+
+  function costCharts(requests, turns, jev) {
+    const priced = [...turns.map(t => ({ ts: t.ts, label: t.model || "?", v: t.cost_usd })),
+                    ...jev.map(j => ({ ts: j.ts, label: "Jev", v: j.cost_usd }))].filter(p => p.v != null).sort((a, b) => a.ts - b.ts);
+    const totals = new Map(), sets = new Map();
+    priced.forEach(p => {
+      totals.set(p.label, (totals.get(p.label) || 0) + p.v);
+      if (!sets.has(p.label)) sets.set(p.label, []);
+      sets.get(p.label).push({ x: p.ts, y: totals.get(p.label) });
+    });
+    const labels = [...sets.keys()].sort();
+    draw("costModel", "scatter", { datasets: lineDatasets(labels.map(label => ({ label, data: sets.get(label) })), labels) }, baseOptions(true));
+    const share = COMPONENTS.map(([, key]) => sum(requests, r => r.cost && r.cost[key]));
+    const shareOptions = baseOptions(false); shareOptions.indexAxis = "y"; shareOptions.plugins.legend.display = false;
+    draw("costShare", "bar", { labels: COMPONENTS.map(([label]) => label),
+      datasets: [{ label: "USD", data: share, backgroundColor: COMPONENTS.map((_, i) => series(i)), borderRadius: 4 }] }, shareOptions);
+    const last = requests.filter(r => costOf(r) !== null && costOf(r) > 0).slice(-CLAUDE_REQUESTS);
+    const datasets = COMPONENTS.map(([label, key], i) => ({
+      label, data: last.map(r => (r.cost && r.cost[key]) || 0), backgroundColor: series(i), borderColor: css("--card"), borderWidth: 1,
+    }));
+    const options = baseOptions(false); options.scales.x.stacked = options.scales.y.stacked = true;
+    draw("costAnswer", "bar", { labels: last.map(r => clock(r.ts)), datasets }, options);
+  }
+
+  function conversationTable(requests) {
+    const by = new Map();
+    requests.forEach(r => { const id = r.conversation_id || "(none)"; if (!by.has(id)) by.set(id, []); by.get(id).push(r); });
+    const rows = [...by.entries()].map(([id, rs]) => ({ id, rs, cost: sum(rs, costOf) })).sort((a, b) => b.cost - a.cost);
+    const head = ["Conversation", "Source", "Providers", "Messages", "Tokens in / out", "Cost", "First", "Last"];
+    table("conversations", head, rows.map(c => [
+      c.id, [...new Set(c.rs.map(r => r.source))].join(", "), [...new Set(c.rs.map(r => r.provider || "?"))].join(", "),
+      fmt(c.rs.length), `${fmt(sum(c.rs, r => r.input_tokens))} / ${fmt(sum(c.rs, r => r.output_tokens))}`,
+      usd(c.cost) + (c.rs.some(r => r.price_unknown) ? " (partial)" : ""), clock(c.rs[0].ts), clock(c.rs.at(-1).ts),
+    ]), "No conversations yet.", rows.map(c => c.id));
+    const chosen = by.get(picked) || [];
+    $("convTitle").textContent = picked && chosen.length ? `Messages of ${picked}` : "";
+    if (!chosen.length) { $("convMessages").replaceChildren(); return; }
+    table("convMessages", ["Time", "Model", "Status", "TTFT", "Total", "In", "Out", "Cost"], chosen.map(r => [
+      clock(r.ts), modelOf(r), r.error || r.stop_reason || "", fmt(r.ttft_ms), fmt(r.total_ms), fmt(r.input_tokens),
+      fmt(r.output_tokens), usd(costOf(r)) + (r.price_unknown ? " (partial)" : ""),
+    ]), "");
   }
 
   function ttftCharts(requests, models) {
@@ -203,18 +279,22 @@
   function requestTable(requests) {
     const rows = requests.slice(-LAST_REQUESTS).reverse().map(r => [
       clock(r.ts), r.source || "", modelOf(r), fmt(r.ttft_ms), fmt(r.total_ms), fmt(r.itl_p50_ms, 1), fmt(r.itl_p95_ms, 1),
-      fmt(r.tokens_per_s, 1), fmt(r.input_tokens), fmt(r.output_tokens), r.stop_reason || "",
+      fmt(r.tokens_per_s, 1), fmt(r.input_tokens), fmt(r.output_tokens), usd(costOf(r)), r.stop_reason || "",
       r.error || (r.refusal ? "refusal" : "") || (r.fallback_model ? "fallback " + r.fallback_model : ""),
     ]);
-    table("requests", ["Time", "Source", "Model", "TTFT", "Total", "ITL p50", "ITL p95", "tok/s", "In", "Out", "Stop", "Issue"],
+    table("requests", ["Time", "Source", "Model", "TTFT", "Total", "ITL p50", "ITL p95", "tok/s", "In", "Out", "Cost", "Stop", "Issue"],
           rows, "No requests yet: ask a question with `hci ask`, `hci chat`, the phone or `hci eval`.");
   }
 
-  function table(id, head, rows, empty) {
+  function table(id, head, rows, empty, keys) {
     const el = $(id), tr = document.createElement("tr");
     head.forEach((h, i) => { const th = document.createElement("th"); th.textContent = h; if (i > 2) th.className = "num"; tr.append(th); });
-    const body = rows.map(cells => {
+    const body = rows.map((cells, n) => {
       const row = document.createElement("tr");
+      if (keys) {
+        row.className = "pick" + (keys[n] === picked ? " picked" : ""); row.tabIndex = 0;
+        row.onclick = row.onkeydown = e => { if (e.type === "click" || e.key === "Enter") { picked = keys[n]; render(); } };
+      }
       cells.forEach((c, i) => { const td = document.createElement("td"); td.textContent = c; if (i > 2) td.className = "num"; row.append(td); });
       return row;
     });
@@ -230,6 +310,10 @@
     const requests = of("request"), jev = of("jev"), retrievals = of("retrieval");
     const models = [...new Set(requests.map(modelOf))].sort();
     tiles(requests, jev, of("model_turn"));
+    const bySource = kind => events.filter(e => e.kind === kind && (!$("source").value || e.source === $("source").value));
+    costTiles(bySource("request"), requests, of("model_turn"), jev);
+    costCharts(requests, of("model_turn"), jev);
+    conversationTable(requests);
     ttftCharts(requests, models);
     itlChart(requests);
     draw("tps", "scatter", { datasets: lineDatasets(timeSeries(requests, "tokens_per_s", modelOf), models) }, baseOptions(true));
