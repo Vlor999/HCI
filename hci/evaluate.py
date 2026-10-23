@@ -11,7 +11,7 @@ from hci.config import get_settings
 from hci.constants import CASES_DIR, STEP_MARKER
 from hci.device import backend
 from hci.index import default_embedder
-from hci.rag import RAG, text_only
+from hci.rag import ExplanationPipeline, text_only
 
 
 def cases() -> list[dict]:
@@ -29,7 +29,7 @@ def run(provider: str | None, model: str | None, answers: bool = True) -> dict:
     settings = get_settings()
     facts_file = settings.facts_file
     settings.facts_file = Path(tempfile.mkdtemp()) / "facts.json"  # never touch real facts
-    rag = RAG(embed=embed, judge=False)
+    rag = ExplanationPipeline(embed=embed, judge=False)
     t0 = time.perf_counter()
     answer = answerer(rag, provider, model) if answers else None
     load_llm = time.perf_counter() - t0

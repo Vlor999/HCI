@@ -8,7 +8,7 @@ import jsonschema
 import pytest
 
 from hci.config import get_settings
-from hci.rag import RAG
+from hci.rag import ExplanationPipeline
 
 CASES_DIR = Path(__file__).parent / "cases"
 SCHEMA = json.loads((CASES_DIR / "schema.json").read_text())
@@ -36,7 +36,7 @@ def test_unique_ids():
 def context(case, tmp_path, monkeypatch) -> list[str]:
     monkeypatch.setenv("HCI_FACTS_FILE", str(tmp_path / "facts.json"))
     get_settings.cache_clear()
-    rag = RAG(embed=embedder(), judge=False)
+    rag = ExplanationPipeline(embed=embedder(), judge=False)
     for fact in case.get("facts", []):
         rag.add_fact(fact["text"], fact.get("scenario"))
     return [c.id for c in rag.retrieve(case["question"], case.get("scenario"), case.get("history", [])).chunks]

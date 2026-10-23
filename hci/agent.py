@@ -13,7 +13,7 @@ from anthropic import beta_tool
 from hci import corpus, llm
 from hci.config import get_settings
 from hci.constants import AGENT_BETAS, AGENT_SYSTEM
-from hci.rag import RAG, status
+from hci.rag import ExplanationPipeline, status
 from hci.types import Answer, Propose
 
 
@@ -21,8 +21,8 @@ def reject(text: str, scenario: int | None) -> str:
     return "Not saved: no operator available to approve facts here."
 
 
-class Agent:
-    def __init__(self, rag: RAG, model: str | None = None):
+class ClaudeMemoryAgent:
+    def __init__(self, rag: ExplanationPipeline, model: str | None = None):
         self.rag, self.model, self.propose = rag, model or get_settings().claude_model, reject
         self.client = anthropic.Anthropic()
         self.searches, self.events = 0, []  # events: tool results, shown as steps
@@ -109,10 +109,10 @@ def describe(tool: str, args: dict) -> str:
     return "Listing scenarios"
 
 
-def answerer(rag: RAG, provider: str | None = None, model: str | None = None) -> Answer:
+def answerer(rag: ExplanationPipeline, provider: str | None = None, model: str | None = None) -> Answer:
     """Claude runs the agent loop; local models run the fixed RAG pipeline (too small for reliable tool use)."""
     if (provider or get_settings().provider) == "anthropic":
         print(f"Model: {model or get_settings().claude_model} (Anthropic, agent mode)", file=sys.stderr)
-        return Agent(rag, model).answer
+        return ClaudeMemoryAgent(rag, model).answer
     gen = llm.load(provider, model)
     return lambda question, scenario=None, history=(), propose=reject: rag.answer(question, gen, scenario, history)

@@ -36,7 +36,7 @@ def main() -> None:
         return corpus.add_fact(a.text, a.scenario)
 
     from hci.agent import answerer
-    from hci.rag import RAG
+    from hci.rag import ExplanationPipeline
 
     def propose(text: str, scenario: int | None) -> str:
         if input(f"\nSave fact for scenario {scenario}: {text!r}? [y/N] ").strip().lower() != "y":
@@ -44,7 +44,7 @@ def main() -> None:
         rag.add_fact(text, scenario)
         return "Saved."
 
-    rag = RAG()
+    rag = ExplanationPipeline()
     answer = answerer(rag, a.provider, a.model)
     if a.cmd == "ask":
         for t in answer(a.question, a.scenario, (), propose):

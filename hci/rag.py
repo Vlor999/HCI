@@ -5,7 +5,7 @@ from collections.abc import Iterator, Sequence
 from hci import corpus, jev
 from hci.config import get_settings
 from hci.constants import NOT_FOUND, STEP_MARKER, SYSTEM, Source
-from hci.index import Index, default_embedder
+from hci.index import HybridIndex, default_embedder
 from hci.types import Embed, Generate, RecordChunk, Retrieval
 
 
@@ -17,7 +17,7 @@ def text_only(pieces) -> str:
     return "".join(p for p in pieces if not p.startswith(STEP_MARKER))
 
 
-class RAG:
+class ExplanationPipeline:
     def __init__(self, embed: Embed | None = None, judge: bool | None = None):
         self.embed = embed or default_embedder()
         self.judge = jev.enabled() if judge is None else judge
@@ -26,7 +26,7 @@ class RAG:
     def reload(self) -> None:
         self.stamp = corpus.stamp()
         self.chunks = corpus.load()
-        self.index = Index(self.chunks, self.embed)
+        self.index = HybridIndex(self.chunks, self.embed)
 
     def add_fact(self, text: str, scenario: int | None = None) -> None:
         corpus.add_fact(text, scenario)

@@ -13,7 +13,7 @@ from hci.agent import answerer
 from hci.config import get_settings
 from hci.constants import PROPOSALS_MARKER, WEB_PAGE
 from hci.device import backend
-from hci.rag import RAG
+from hci.rag import ExplanationPipeline
 from hci.schemas import AskRequest, FactRequest
 from hci.types import Answer
 
@@ -25,8 +25,8 @@ lock = threading.Lock()  # ponytail: one generation at a time; local models aren
 
 
 @cache
-def get_rag() -> RAG:
-    return RAG()
+def get_rag() -> ExplanationPipeline:
+    return ExplanationPipeline()
 
 
 def auth(authorization: str = Header("")) -> None:

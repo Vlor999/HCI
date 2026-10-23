@@ -25,7 +25,7 @@ def tokenize(text: str) -> list[str]:
     return re.findall(r"\w+", text.lower())
 
 
-class Index:
+class HybridIndex:
     # ponytail: brute-force numpy scan, fine up to ~100k chunks; swap for faiss/sqlite-vec past that
     def __init__(self, chunks: list[RecordChunk], embed: Embed):
         self.chunks, self.embed = chunks, embed

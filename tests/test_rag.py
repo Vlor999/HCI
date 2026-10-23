@@ -5,8 +5,8 @@ import numpy as np
 from hci import corpus, jev
 from hci.config import get_settings
 from hci.constants import NOT_FOUND
-from hci.index import Index, tokenize
-from hci.rag import RAG, text_only
+from hci.index import HybridIndex, tokenize
+from hci.rag import ExplanationPipeline, text_only
 
 
 def fake_embed(texts):
@@ -26,10 +26,10 @@ def test_rag(tmp_path, monkeypatch):
     step_a = next(c for c in chunks if c.id == "path-0-A")
     assert "travel time 6.0 min" in step_a.text  # 120 m at 1.2 km/h
 
-    top = Index(chunks, fake_embed).search("energy recharge power source", k=3)
+    top = HybridIndex(chunks, fake_embed).search("energy recharge power source", k=3)
     assert any(c.id == "manual-1" for c in top), [c.id for c in top]
 
-    rag = RAG(embed=fake_embed, judge=False)
+    rag = ExplanationPipeline(embed=fake_embed, judge=False)
     ctx = rag.retrieve("which path is fastest?", scenario=0).chunks
     assert [c.id for c in ctx[:3]] == ["path-0-A", "path-0-B", "path-0-C"]  # current scenario pinned first
     assert len({c.id for c in ctx}) == len(ctx)
@@ -58,12 +58,12 @@ def test_rag(tmp_path, monkeypatch):
 
 
 def test_agent_tools(tmp_path, monkeypatch):
-    from hci.agent import Agent
+    from hci.agent import ClaudeMemoryAgent
 
     monkeypatch.setenv("HCI_FACTS_FILE", str(tmp_path / "facts.json"))
     get_settings.cache_clear()
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test")
-    agent = Agent(RAG(embed=fake_embed, judge=False))
+    agent = ClaudeMemoryAgent(ExplanationPipeline(embed=fake_embed, judge=False))
     tools = {t.name: t for t in agent.tools}
     assert set(tools) == {"query_context", "add_context", "list_scenarios"}
 
