@@ -183,8 +183,10 @@ validates every file against it. A case gives a question, an optional scenario, 
 chunk ids that must or must not be in the context (pytest checks that each one names an existing file and a real
 chunk), chunks that must come first, and words the answer must all contain, at least one of
 (`answer_contains_any`), or must not contain. `unanswerable` marks a question the records do not answer: the answer
-must refuse (it contains one of the refusal markers of `hci/constants.py`), and with `--jev` retrieval passes when Jev
-refuses rather than on the pinned chunks. `xfail` marks a known weakness, and the case still runs.
+must refuse (it contains one of the refusal phrases of `hci/constants.py` and none of `answer_excludes`, which always
+wins). With `--jev`, such a case passes retrieval when Jev refuses rather than on the pinned chunks, so a pinning
+regression on it shows only in runs without the judge; when Jev refuses, the streamed `NOT_FOUND` is not scored as an
+answer, so one Jev decision counts once. `xfail` marks a known weakness, and the case still runs.
 
 `hci eval` on an M4 Pro (45 cases, 21 with answer checks):
 
