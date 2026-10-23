@@ -10,7 +10,7 @@ from hci import metrics
 from hci.config import get_settings
 from hci.constants import MetricSource
 from hci.rag import status
-from hci.types import RequestEvent, RetrievalEvent, ToolEvent
+from hci.types import CostBreakdown, RequestEvent, RetrievalEvent, ToolEvent
 
 
 class FakeClock:
@@ -152,6 +152,7 @@ def test_record_wraps_payload_in_envelope():
     assert record == {
         "kind": "tool",
         "request_id": None,
+        "conversation_id": None,
         "source": None,
         "tool": "list_scenarios",
         "duration_ms": 1.5,
@@ -226,3 +227,32 @@ def test_read_skips_malformed_lines():
         f.write('{"kind": "to')
     # Act / Assert
     assert [e["tool"] for e in metrics.read()] == ["a"]
+
+
+class TestCost:
+    def test_local_answer_costs_nothing(self):
+        """An answer with no priced call (local model) costs 0 USD, not unknown."""
+        # Act
+        list(metrics.track(_make_stream("a"), MetricSource.CLI, "q", None, "conv-1"))
+        # Assert
+        record = _read(get_settings().metrics_file)[0]
+        assert (record["cost_usd"], record["price_unknown"], record["conversation_id"]) == (0.0, False, "conv-1")
+
+    def test_unpriced_only_is_null(self):
+        """When every priced call had no price, the answer's cost is null and flagged."""
+        # Act
+        with metrics.scope(MetricSource.CLI) as current:
+            metrics.add_cost(None)
+        metrics.fill_cost(current.request)
+        # Assert
+        assert (current.request.cost_usd, current.request.price_unknown) == (None, True)
+
+    def test_partial_price_keeps_known_parts(self):
+        """A priced Claude turn plus an unpriced Jev call gives the Claude cost, flagged as partial."""
+        # Act
+        with metrics.scope(MetricSource.CLI) as current:
+            metrics.add_cost(CostBreakdown(input_usd=0.002, output_usd=0.01))
+            metrics.add_cost(None)
+        metrics.fill_cost(current.request)
+        # Assert
+        assert (current.request.cost_usd, current.request.price_unknown) == (0.012, True)

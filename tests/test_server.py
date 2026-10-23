@@ -177,6 +177,25 @@ def test_answer_writes_a_server_request_event(client):
     assert "why path A" not in json.dumps(event)
 
 
+def test_conversation_id_reaches_the_events(client):
+    """The page's conversation id is logged on the answer's request event."""
+    # Act
+    client.post("/api/ask", headers=AUTH, json={"question": "q", "conversation_id": "a1b2-c3_d4"})
+    # Assert
+    (event,) = [json.loads(line) for line in get_settings().metrics_file.read_text().splitlines()]
+    assert event["conversation_id"] == "a1b2-c3_d4"
+
+
+@pytest.mark.parametrize("conversation_id", ["", "has space", "x" * 65, "../etc"])
+def test_malformed_conversation_id_is_422(client, conversation_id):
+    """A conversation id outside letters, digits, `-` and `_` (1 to 64) is rejected."""
+    # Act / Assert
+    assert (
+        client.post("/api/ask", headers=AUTH, json={"question": "q", "conversation_id": conversation_id}).status_code
+        == 422
+    )
+
+
 class TestMetrics:
     def test_metrics_needs_token(self, client):
         """`/api/metrics` on `hci serve` is behind the same token as the API."""

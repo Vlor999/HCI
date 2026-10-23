@@ -21,7 +21,7 @@ from loguru import logger
 
 from hci.config import get_settings
 from hci.constants import STEP_MARKER
-from hci.types import MetricEvent, MetricScope, RequestEvent, ToolEvent
+from hci.types import CostBreakdown, MetricEvent, MetricScope, RequestEvent, ToolEvent
 
 # ponytail: one lock per process; `hci serve` and `hci eval` writing at once rely on small O_APPEND writes not
 # interleaving. A queue to one writer if lines ever get large.
@@ -85,7 +85,7 @@ def fill_timing(request: RequestEvent, start: float, text_times: list[float], en
 
 
 def record(event: MetricEvent, scope: MetricScope | None) -> dict:
-    """The JSON record of an event: kind, timestamp, request id and source, then the event's fields.
+    """The JSON record of an event: kind, timestamp, request, conversation and source, then the event's fields.
 
     Args:
         event: The event.
@@ -98,6 +98,7 @@ def record(event: MetricEvent, scope: MetricScope | None) -> dict:
         "kind": event.kind,
         "ts": round(time.time(), 3),
         "request_id": scope.request_id if scope else None,
+        "conversation_id": scope.conversation_id if scope else None,
         "source": scope.source if scope else None,
     }
     return envelope | asdict(event)
@@ -165,25 +166,37 @@ def _pull(stream: Iterator[str]) -> str | None:
     return next(stream, None)
 
 
-def _new_scope(source: str, question: str, scenario: int | None) -> MetricScope:
+def new_id() -> str:
+    """A short random id for a request or a conversation.
+
+    Returns:
+        12 hex characters.
+    """
+    return uuid.uuid4().hex[:12]
+
+
+def _new_scope(source: str, question: str, scenario: int | None, conversation_id: str | None) -> MetricScope:
     logged = question if get_settings().metrics_log_questions else None
     request = RequestEvent(scenario=scenario, question_chars=len(question), question=logged)
-    return MetricScope(uuid.uuid4().hex[:12], source, request)
+    return MetricScope(new_id(), source, conversation_id, request)
 
 
 @contextmanager
-def scope(source: str, question: str = "", scenario: int | None = None) -> Generator[MetricScope]:
+def scope(
+    source: str, question: str = "", scenario: int | None = None, conversation_id: str | None = None
+) -> Generator[MetricScope]:
     """Give the events written in a block their own request id, without a request event.
 
     Args:
         source: `cli`, `server` or `eval`.
         question: The question, for its length.
         scenario: Current scenario index.
+        conversation_id: Conversation the block belongs to.
 
     Yields:
         The scope.
     """
-    current = _new_scope(source, question, scenario)
+    current = _new_scope(source, question, scenario, conversation_id)
     token = _scope.set(current)
     try:
         yield current
@@ -196,6 +209,7 @@ def track(
     source: str,
     question: str,
     scenario: int | None,
+    conversation_id: str | None = None,
     clock: Callable[[], float] = time.perf_counter,
 ) -> Iterator[str]:
     """Pass an answer stream through, timing it, and write its `request` event when it ends.
@@ -208,12 +222,13 @@ def track(
         source: `cli`, `server` or `eval`.
         question: The question, for its length (and text, when `metrics_log_questions` is on).
         scenario: Current scenario index.
+        conversation_id: Conversation the answer belongs to.
         clock: Monotonic clock in seconds.
 
     Yields:
         The pieces, unchanged.
     """
-    current = _new_scope(source, question, scenario)
+    current = _new_scope(source, question, scenario, conversation_id)
     context = contextvars.copy_context()
     context.run(_scope.set, current)
     stream, text_times, start = iter(pieces), [], clock()
@@ -227,6 +242,7 @@ def track(
         raise
     finally:
         fill_timing(current.request, start, text_times, clock())
+        fill_cost(current.request)
         context.run(emit, current.request)
 
 
@@ -241,6 +257,31 @@ def update(**fields: object) -> None:
         return
     for name, value in fields.items():
         setattr(current.request, name, value)
+
+
+def fill_cost(request: RequestEvent) -> None:
+    """Set the request's total cost from its priced components: None when nothing could be priced.
+
+    Args:
+        request: The event to fill.
+    """
+    priced = request.cost != CostBreakdown() or not request.price_unknown
+    request.cost_usd = request.cost.total if priced else None
+
+
+def add_cost(cost: CostBreakdown | None) -> None:
+    """Add a call's cost to the current answer, or flag it as partly unpriced when the cost is unknown.
+
+    Args:
+        cost: The call's cost; None when its price is unknown.
+    """
+    request = current()
+    if request is None:
+        return
+    if cost is None:
+        request.price_unknown = True
+    else:
+        request.cost = request.cost.plus(cost)
 
 
 def current() -> RequestEvent | None:

@@ -239,7 +239,7 @@ def _answer_stream(provider: str, req: AskRequest) -> Iterator[str]:
     with nullcontext() if provider == Provider.ANTHROPIC else local_lock:
         answer = _get_answerer(provider)
         stream = answer(req.question, req.scenario, req.history, partial(_propose, proposals))
-        yield from metrics.track(stream, MetricSource.SERVER, req.question, req.scenario)
+        yield from metrics.track(stream, MetricSource.SERVER, req.question, req.scenario, req.conversation_id)
     if proposals:  # facts the agent wants to save; the page shows approve buttons
         yield PROPOSALS_MARKER + json.dumps(proposals)
 

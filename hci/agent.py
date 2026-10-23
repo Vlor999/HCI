@@ -16,7 +16,7 @@ from anthropic.types import AnthropicBetaParam
 from anthropic.types.beta import BetaMessage, BetaMessageParam
 from loguru import logger
 
-from hci import corpus, llm, metrics
+from hci import corpus, llm, metrics, pricing
 from hci.config import get_settings
 from hci.constants import (
     AGENT_BETAS,
@@ -38,7 +38,7 @@ from hci.constants import (
 )
 from hci.rag import ExplanationPipeline, status
 from hci.schemas import Provider
-from hci.types import Answer, ModelTurnEvent, Propose
+from hci.types import Answer, CostBreakdown, ModelTurnEvent, Propose
 
 
 def reject(text: str, scenario: int | None) -> str:
@@ -195,30 +195,50 @@ def _tool_ms() -> float:
     return (request.tool_ms or 0) if request else 0
 
 
+def _turn_event(message: BetaMessage, duration_ms: float, cost: CostBreakdown | None) -> ModelTurnEvent:
+    usage = message.usage
+    return ModelTurnEvent(
+        duration_ms,
+        message.model,
+        usage.input_tokens,
+        usage.output_tokens,
+        usage.cache_creation_input_tokens,
+        usage.cache_read_input_tokens,
+        message.stop_reason,
+        fallback_model=next((i.model for i in usage.iterations or () if i.type == "fallback_message"), None),
+        cost_usd=cost.total if cost else None,
+        cost=cost,
+        price_unknown=cost is None,
+    )
+
+
 def record_turn(message: BetaMessage, duration_ms: float) -> None:
-    """Write a `model_turn` event and add the turn's usage to the answer's request event.
+    """Write a `model_turn` event and add the turn's usage and cost to the answer's request event.
+
+    The cost is priced by `message.model`, the model that answered: the fallback model when the server fell back.
 
     Args:
         message: The turn's final message.
-        duration_ms: Time from the turn's stream to its final message.
+        duration_ms: Time from sending the turn's request to its final message, tools excluded.
     """
     usage = message.usage
-    fallback = next((i.model for i in usage.iterations or () if i.type == "fallback_message"), None)
-    tokens = {
-        "input_tokens": usage.input_tokens,
-        "output_tokens": usage.output_tokens,
-        "cache_creation_input_tokens": usage.cache_creation_input_tokens,
-        "cache_read_input_tokens": usage.cache_read_input_tokens,
-    }
-    metrics.emit(
-        ModelTurnEvent(duration_ms, message.model, **tokens, stop_reason=message.stop_reason, fallback_model=fallback)
+    cache_write, cache_read = usage.cache_creation_input_tokens, usage.cache_read_input_tokens
+    cost = pricing.claude_cost(message.model, usage.input_tokens, usage.output_tokens, cache_write, cache_read)
+    event = _turn_event(message, duration_ms, cost)
+    metrics.emit(event)
+    metrics.add(
+        input_tokens=usage.input_tokens,
+        output_tokens=usage.output_tokens,
+        cache_creation_input_tokens=cache_write,
+        cache_read_input_tokens=cache_read,
+        model_ms=duration_ms,
     )
-    metrics.add(**tokens, model_ms=duration_ms)
+    metrics.add_cost(cost)
     metrics.update(stop_reason=message.stop_reason)
     if message.stop_reason == "refusal":
         metrics.update(refusal=True)
-    if fallback:
-        metrics.update(fallback_model=fallback)
+    if event.fallback_model:
+        metrics.update(fallback_model=event.fallback_model)
 
 
 def build_messages(question: str, scenario: int | None, history: Sequence[tuple[str, str]]) -> list[BetaMessageParam]:

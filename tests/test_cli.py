@@ -45,6 +45,18 @@ class TestChatSession:
         (event,) = [json.loads(line) for line in get_settings().metrics_file.read_text().splitlines()]
         assert (event["kind"], event["source"], event["scenario"], event["output_pieces"]) == ("request", "cli", 1, 1)
 
+    def test_session_keeps_one_conversation_id(self, fake_answer):
+        """Every answer of a chat session carries the same conversation id; a new session gets a new one."""
+        # Arrange
+        session, _ = _make_session(fake_answer)
+        # Act
+        session.handle("why A?")
+        session.handle("and B?")
+        _make_session(fake_answer)[0].handle("why C?")
+        # Assert
+        ids = [json.loads(line)["conversation_id"] for line in get_settings().metrics_file.read_text().splitlines()]
+        assert ids[0] == ids[1] != ids[2]
+
     def test_fact_saves_for_current_scenario(self, fake_answer):
         """`/fact <text>` saves the operator's text for the current scenario."""
         # Arrange

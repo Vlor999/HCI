@@ -27,6 +27,12 @@ class Settings(BaseSettings):
         default=0.3, description="Min P(answerable) below which the question is refused. Tune on out-of-docs questions."
     )
     jev_timeout: float = Field(default=10, description="Jev HTTP timeout in seconds.")
+    jev_price_input_per_mtok: float | None = Field(
+        default=None, ge=0, description="Jev price, USD per million input tokens; copy it from console.typesafe.ai."
+    )
+    jev_price_output_per_mtok: float | None = Field(
+        default=None, ge=0, description="Jev price, USD per million output tokens; copy it from console.typesafe.ai."
+    )
     typesafe_api_key: SecretStr | None = Field(
         default=None,
         validation_alias=AliasChoices("TYPESAFE_API_KEY"),

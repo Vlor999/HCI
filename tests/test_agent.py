@@ -167,7 +167,7 @@ def test_build_messages_alternates_history_and_states_scenario():
 
 
 def _make_turn(text: str, stop_reason: str, fallback: str | None = None) -> MagicMock:
-    """One model turn: a stream of one text delta and a final message with usage."""
+    """One model turn: a stream of one text delta and a final message with usage, answered by the fallback if any."""
     iterations = [SimpleNamespace(type="fallback_message", model=fallback)] if fallback else None
     usage = SimpleNamespace(
         input_tokens=100,
@@ -179,7 +179,7 @@ def _make_turn(text: str, stop_reason: str, fallback: str | None = None) -> Magi
     stream = MagicMock()
     stream.__iter__.return_value = iter([SimpleNamespace(type="text", text=text)])
     stream.get_final_message.return_value = SimpleNamespace(
-        stop_reason=stop_reason, model="claude-sonnet-5-5", usage=usage
+        stop_reason=stop_reason, model=fallback or "claude-sonnet-5-5", usage=usage
     )
     return stream
 
@@ -241,12 +241,37 @@ class TestAgentMetrics:
     def test_refusal_and_fallback_are_flagged(self, answer_events):
         """A refusal stop and a server-side fallback model are recorded on the request."""
         # Act
-        pieces, events = answer_events(final_stop="refusal", fallback="claude-opus-5")
+        pieces, events = answer_events(final_stop="refusal", fallback="claude-opus-4-8")
         # Assert
         assert pieces[-1] == AGENT_REFUSAL
         request, turn = events[-1], events[-2]
-        assert (request["refusal"], request["fallback_model"]) == (True, "claude-opus-5")
-        assert turn["fallback_model"] == "claude-opus-5"
+        assert (request["refusal"], request["fallback_model"]) == (True, "claude-opus-4-8")
+        assert turn["fallback_model"] == "claude-opus-4-8"
+
+    def test_cost_per_turn_and_request(self, answer_events):
+        """Each turn is priced from its usage; the request sums the turns, component by component."""
+        # Act
+        _, events = answer_events()
+        # Assert: 100 in, 20 out, 50 cache write, 400 cache read per turn, Sonnet 5.5 prices
+        turn, request = events[0], events[-1]
+        assert turn["cost"] == {
+            "input_usd": 0.0002,
+            "output_usd": 0.0002,
+            "cache_write_usd": 0.000125,
+            "cache_read_usd": 0.00008,
+            "jev_usd": 0,
+        }
+        assert turn["cost_usd"] == pytest.approx(0.000605)
+        assert request["cost_usd"] == pytest.approx(0.00121) and request["price_unknown"] is False
+
+    def test_fallback_turn_is_priced_by_the_model_that_answered(self, answer_events):
+        """A turn served by the fallback model is priced at that model's prices, not the requested one's."""
+        # Act
+        _, events = answer_events(fallback="claude-opus-4-8")
+        # Assert: Opus 4.8 lists no cache read price, and the turn read from the cache
+        turn = events[-2]
+        assert (turn["model"], turn["cost_usd"], turn["price_unknown"]) == ("claude-opus-4-8", None, True)
+        assert events[-1]["price_unknown"] is True
 
     def test_anthropic_error_class_is_recorded(self, rag, monkeypatch):
         """An Anthropic error, turned into a message for the user, is still logged by class."""

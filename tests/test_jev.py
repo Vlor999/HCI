@@ -164,6 +164,7 @@ class TestJevEvent:
         assert (event["input_tokens"], event["output_tokens"]) == (336, 39)
         assert (event["questions"], event["passages_kept"], event["passages_total"]) == (3, 1, 2)
         assert event["fallback"] is False
+        assert (event["cost_usd"], event["price_unknown"]) == (None, True)  # Jev prices not set
 
     def test_outage_logs_fallback_and_error_class(self, jev_key):
         """A Jev outage is logged as a fallback with the error class; every passage counts as kept."""
@@ -185,3 +186,19 @@ class TestJevEvent:
         # Assert
         text = get_settings().metrics_file.read_text()
         assert not any(s in text for s in ("secret question", "passage 0", jev_key))
+
+
+def test_jev_cost_uses_price_settings(jev_key, monkeypatch):
+    """With Jev prices set, the event carries the cost of its usage."""
+    # Arrange
+    monkeypatch.setenv("HCI_JEV_PRICE_INPUT_PER_MTOK", "1.0")
+    monkeypatch.setenv("HCI_JEV_PRICE_OUTPUT_PER_MTOK", "2.0")
+    get_settings.cache_clear()
+    body = {"answers": _make_answers(0.9), "usage": {"input_tokens": 1_000_000, "output_tokens": 500_000}}
+    # Act
+    with patch("hci.jev.client") as client:
+        client.return_value.post.return_value = _make_response(body)
+        jev.judge("q", _make_chunks(1))
+    # Assert
+    (event,) = _events()
+    assert (event["cost_usd"], event["price_unknown"]) == (2.0, False)

@@ -93,7 +93,7 @@ def test_rates_skip_cases_without_the_check(tmp_path):
 
 
 def test_eval_events_carry_the_eval_source(tmp_path):
-    """Eval retrievals and answers are logged with source `eval`; the answer keeps its own request id."""
+    """Eval events have source `eval` and the run's conversation id; the answer keeps its own request id."""
     # Arrange
     cases_dir = _make_cases_dir(tmp_path, FAILING_CASE)
     # Act
@@ -102,4 +102,5 @@ def test_eval_events_carry_the_eval_source(tmp_path):
     events = [json.loads(line) for line in get_settings().metrics_file.read_text().splitlines()]
     assert [e["kind"] for e in events] == ["retrieval", "request"]
     assert {e["source"] for e in events} == {"eval"}
+    assert len({e["conversation_id"] for e in events}) == 1 and events[0]["conversation_id"]  # one id per run
     assert events[0]["request_id"] != events[1]["request_id"]

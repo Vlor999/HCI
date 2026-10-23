@@ -11,7 +11,7 @@ from functools import cache
 import httpx
 from loguru import logger
 
-from hci import metrics
+from hci import metrics, pricing
 from hci.config import get_settings
 from hci.constants import JEV_ANSWERABLE_QUESTION, JEV_PASSAGE_QUESTION, JEV_URL
 from hci.types import JevEvent, RecordChunk
@@ -97,13 +97,16 @@ def _post(question: str, chunks: list[RecordChunk]) -> httpx.Response:
 
 
 def _note_response(event: JevEvent, response: httpx.Response, body: dict) -> None:
-    """Copy the network time, answerability, usage and model of a Jev response into its event."""
+    """Copy the network time, answerability, usage, model and cost of a Jev response into its event and answer."""
     event.network_ms = round(response.elapsed.total_seconds() * 1000, 1)
     event.answerable_p = body["answers"]["answerable"]["noul"]
     usage = body.get("usage")
     if isinstance(usage, dict):
         event.input_tokens, event.output_tokens = usage.get("input_tokens"), usage.get("output_tokens")
     event.model = body.get("model")
+    cost = pricing.jev_cost(event.input_tokens, event.output_tokens)
+    event.cost_usd, event.price_unknown = (cost.total, False) if cost else (None, True)
+    metrics.add_cost(cost)
 
 
 def judge(question: str, chunks: list[RecordChunk]) -> tuple[set[str], bool]:

@@ -1,7 +1,7 @@
 """Type aliases, protocols and domain dataclasses shared across the package."""
 
 from collections.abc import Callable, Iterator, Sequence
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, astuple, dataclass, field
 from typing import ClassVar, Protocol
 
 import numpy as np
@@ -153,6 +153,41 @@ class EvalReport:
 # --- metrics -----------------------------------------------------------------
 
 
+@dataclass(frozen=True)
+class CostBreakdown:
+    """Estimated cost of an answer or a call, in USD, by component.
+
+    Attributes:
+        input_usd: Claude prompt tokens (cache excluded).
+        output_usd: Claude generated tokens.
+        cache_write_usd: Claude prompt tokens written to the cache.
+        cache_read_usd: Claude prompt tokens read from the cache.
+        jev_usd: Jev calls.
+    """
+
+    input_usd: float = 0.0
+    output_usd: float = 0.0
+    cache_write_usd: float = 0.0
+    cache_read_usd: float = 0.0
+    jev_usd: float = 0.0
+
+    @property
+    def total(self) -> float:
+        """Sum of the components, in USD."""
+        return round(self.input_usd + self.output_usd + self.cache_write_usd + self.cache_read_usd + self.jev_usd, 8)
+
+    def plus(self, other: "CostBreakdown") -> "CostBreakdown":
+        """Component-wise sum.
+
+        Args:
+            other: The cost to add.
+
+        Returns:
+            A new breakdown.
+        """
+        return CostBreakdown(*(round(a + b, 8) for a, b in zip(astuple(self), astuple(other))))
+
+
 @dataclass
 class RequestEvent:
     """One answer, end to end; filled while it streams, written when it ends.
@@ -181,6 +216,10 @@ class RequestEvent:
         refusal: Claude stopped with `refusal`.
         fallback_model: Model that served the turn when Claude fell back server-side.
         error: Class of the error that ended the answer.
+        cost_usd: Estimated cost from the logged usage: Claude turns plus Jev; 0 for local models, None when no
+            part could be priced.
+        cost: `cost_usd` by component (priced parts only).
+        price_unknown: Some part had no price (unlisted model, Jev price not set), so `cost_usd` is partial.
     """
 
     kind: ClassVar[str] = "request"
@@ -207,6 +246,9 @@ class RequestEvent:
     refusal: bool = False
     fallback_model: str | None = None
     error: str | None = None
+    cost_usd: float | None = None
+    cost: CostBreakdown = field(default_factory=CostBreakdown)
+    price_unknown: bool = False
 
 
 @dataclass(frozen=True)
@@ -247,6 +289,8 @@ class JevEvent:
         model: Jev model that answered.
         fallback: Jev failed and every passage was kept.
         error: Class of the error behind the fallback.
+        cost_usd: Estimated cost from the usage and the Jev price settings; None when they are not set.
+        price_unknown: The Jev price settings are not set (or the usage is missing).
     """
 
     kind: ClassVar[str] = "jev"
@@ -261,6 +305,8 @@ class JevEvent:
     model: str | None = None
     fallback: bool = False
     error: str | None = None
+    cost_usd: float | None = None
+    price_unknown: bool = False
 
 
 @dataclass
@@ -289,13 +335,16 @@ class ModelTurnEvent:
 
     Attributes:
         duration_ms: Time from sending the turn's request to its final message, tools excluded.
-        model: Model that answered.
+        model: Model that answered (`response.model`, the fallback model when the server fell back).
         input_tokens: Prompt tokens, cache excluded.
         output_tokens: Generated tokens, thinking and tool calls included.
         cache_creation_input_tokens: Prompt tokens written to the cache.
         cache_read_input_tokens: Prompt tokens read from the cache.
         stop_reason: Why the turn ended.
         fallback_model: Model that served the turn after a server-side fallback.
+        cost_usd: Estimated cost, priced by `model`; None when its price is not listed.
+        cost: `cost_usd` by component; None when unknown.
+        price_unknown: `model` has no listed price.
     """
 
     kind: ClassVar[str] = "model_turn"
@@ -307,6 +356,9 @@ class ModelTurnEvent:
     cache_read_input_tokens: int | None
     stop_reason: str | None
     fallback_model: str | None = None
+    cost_usd: float | None = None
+    cost: CostBreakdown | None = None
+    price_unknown: bool = False
 
 
 MetricEvent = RequestEvent | RetrievalEvent | JevEvent | ToolEvent | ModelTurnEvent
@@ -319,9 +371,11 @@ class MetricScope:
     Attributes:
         request_id: Ties the events of one answer together.
         source: `cli`, `server` or `eval`.
+        conversation_id: Ties the answers of one conversation (chat session, phone conversation, eval run).
         request: The answer's request event, filled as it streams.
     """
 
     request_id: str
     source: str
+    conversation_id: str | None = None
     request: RequestEvent = field(default_factory=RequestEvent)

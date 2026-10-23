@@ -65,6 +65,7 @@ class ChatSession:
         scenario: Current scenario index, None for no scenario.
         history: Previous (question, answer) turns, oldest first.
         names: Scenario descriptions, by index.
+        conversation_id: Ties the session's answers together in the metrics.
     """
 
     rag: ExplanationPipeline
@@ -72,6 +73,7 @@ class ChatSession:
     scenario: int | None = None
     history: list[tuple[str, str]] = field(default_factory=list)
     names: list[str] = field(default_factory=lambda: [s.get("description", "") for s in corpus.scenarios()])
+    conversation_id: str = field(default_factory=metrics.new_id)
 
     def propose(self, text: str, scenario: int | None) -> str:
         """Ask the operator to approve a fact the model proposes; save it on `y`.
@@ -95,7 +97,8 @@ class ChatSession:
             question: The user's question.
         """
         stream = self.answer(question, self.scenario, self.history, self.propose)
-        pieces = [show(p) for p in metrics.track(stream, MetricSource.CLI, question, self.scenario)]
+        tracked = metrics.track(stream, MetricSource.CLI, question, self.scenario, self.conversation_id)
+        pieces = [show(p) for p in tracked]
         self.history.append((question, "".join(pieces).strip()))
         print()
 
