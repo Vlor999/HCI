@@ -69,12 +69,25 @@ BM25_K1 = 1.5
 BM25_B = 0.75
 RRF_K = 60  # reciprocal rank fusion constant
 
+# --- Documents ---------------------------------------------------------------
+
+DOCUMENT_EXTENSIONS = (".md", ".txt", ".pdf", ".docx", ".pages")  # one parser each in hci/documents.py
+UPLOADS_DIRNAME = "uploads"  # subfolder of the documents dir that phone uploads go to
+# Exports a .pages file to PDF through the Pages app; paths come as arguments, never spliced into the script.
+PAGES_EXPORT_SCRIPT = """on run argv
+  tell application id "com.apple.Pages"
+    set d to open (POSIX file (item 1 of argv))
+    export d to (POSIX file (item 2 of argv)) as PDF
+    close d saving no
+  end tell
+end run"""
+
 # --- Paths -------------------------------------------------------------------
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT_DIR / "data"
 PATHS_FILE = DATA_DIR / "paths.json"
-MANUAL_FILE = DATA_DIR / "documents" / "sample_manual.md"
+DOCUMENTS_DIR = DATA_DIR / "documents"
 CORRECTIONS_DIR = DATA_DIR / "corrections"
 EXPLANATIONS_FILE = DATA_DIR / "explanations" / "sample_explanations.json"
 FACTS_FILE = DATA_DIR / "facts.json"
@@ -87,7 +100,7 @@ class Source(StrEnum):
     """Where a record chunk comes from."""
 
     PATH = "path"
-    MANUAL = "manual"
+    DOCUMENT = "document"
     CORRECTION = "correction"
     EXAMPLE = "example"
     FACT = "fact"

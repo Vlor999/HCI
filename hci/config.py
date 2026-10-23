@@ -5,10 +5,10 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import AliasChoices, Field, SecretStr
+from pydantic import AliasChoices, Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from hci.constants import CLAUDE_MODEL, FACTS_FILE
+from hci.constants import CLAUDE_MODEL, DOCUMENTS_DIR, FACTS_FILE
 from hci.schemas import Provider
 
 
@@ -47,6 +47,16 @@ class Settings(BaseSettings):
     host: str = Field(default="0.0.0.0", description="Server bind address (0.0.0.0 for phone access on the LAN).")
     port: int = Field(default=8000, description="Server port.")
     facts_file: Path = Field(default=FACTS_FILE, description="JSON file of operator-approved facts.")
+    documents_dir: Path = Field(default=DOCUMENTS_DIR, description="Folder of documents to index, read recursively.")
+    # bge-small reads 512 tokens: 220 words (~300 tokens) plus the chunk header leave room for long words
+    chunk_words: int = Field(default=220, gt=0, description="Max words per document chunk.")
+    chunk_overlap_words: int = Field(
+        default=40, ge=0, description="Words repeated from the end of a chunk at the start of the next, same section."
+    )
+    max_upload_mb: float = Field(default=20, gt=0, description="Largest document the phone can upload, in MB.")
+    pages_export_timeout: float = Field(
+        default=60, description="Seconds allowed for the Pages app to export a .pages file to PDF."
+    )
 
     # --- agent/server ---
     anthropic_api_key: SecretStr | None = Field(
@@ -54,6 +64,12 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("ANTHROPIC_API_KEY"),
         description="Anthropic API key; enables the `anthropic` provider when set.",
     )
+
+    @model_validator(mode="after")
+    def _overlap_below_chunk(self) -> "Settings":
+        if self.chunk_overlap_words >= self.chunk_words:
+            raise ValueError("chunk_overlap_words must be smaller than chunk_words")
+        return self
 
 
 @lru_cache

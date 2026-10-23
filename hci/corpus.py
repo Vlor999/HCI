@@ -10,30 +10,20 @@ from pathlib import Path
 from loguru import logger
 
 from hci.config import get_settings
-from hci.constants import CORRECTIONS_DIR, DATA_DIR, EXPLANATIONS_FILE, MANUAL_FILE, PATHS_FILE, ROOT_DIR, Source
+from hci.constants import CORRECTIONS_DIR, DATA_DIR, EXPLANATIONS_FILE, PATHS_FILE, Source
+from hci.documents import file_ref, load_documents
 from hci.types import RecordChunk
 
 
-def file_ref(path: Path) -> str:
-    """Reference to a file for chunk ids: its path relative to the repo root, or absolute outside the repo.
-
-    Args:
-        path: The file.
-
-    Returns:
-        The POSIX path, e.g. `data/paths.json`.
-    """
-    path = path.resolve()
-    return path.relative_to(ROOT_DIR).as_posix() if path.is_relative_to(ROOT_DIR) else path.as_posix()
-
-
 def stamp() -> float:
-    """Latest change in data/ and the facts file, so a running server picks up edits made elsewhere.
+    """Latest change in data/, the documents folder and the facts file, so a running server picks up edits and uploads.
 
     Returns:
-        The newest modification time under `DATA_DIR` or of the facts file, 0.0 when none exists.
+        The newest modification time under `DATA_DIR`, the documents folder or of the facts file, 0.0 when none exists.
     """
-    files = [f for f in DATA_DIR.rglob("*") if f.is_file()] + [get_settings().facts_file]
+    settings = get_settings()
+    found = [*DATA_DIR.rglob("*"), *settings.documents_dir.rglob("*")]
+    files = [f for f in found if f.is_file()] + [settings.facts_file]
     return max((f.stat().st_mtime for f in files if f.exists()), default=0.0)
 
 
@@ -124,14 +114,6 @@ def _load_paths() -> list[RecordChunk]:
     ]
 
 
-def _load_manual() -> list[RecordChunk]:
-    sections = re.split(r"\n(?=\d+\. )", MANUAL_FILE.read_text().strip())
-    return [
-        RecordChunk(f"{file_ref(MANUAL_FILE)}#{n + 1}", "Robot manual. " + " ".join(section.split()), Source.MANUAL)
-        for n, section in enumerate(sections)
-    ]
-
-
 def _load_correction(path: Path) -> RecordChunk | None:
     text = path.read_text()
     q = re.search(r"^### Q\d+: (.+)$", text, re.MULTILINE)
@@ -166,9 +148,9 @@ def _load_facts() -> list[RecordChunk]:
 
 
 def load() -> list[RecordChunk]:
-    """Every record as retrievable chunks: paths, manual, corrections, examples, then operator facts.
+    """Every record as retrievable chunks: paths, documents, corrections, examples, then operator facts.
 
     Returns:
         The chunks, in that source order.
     """
-    return _load_paths() + _load_manual() + _load_corrections() + _load_examples() + _load_facts()
+    return _load_paths() + load_documents() + _load_corrections() + _load_examples() + _load_facts()

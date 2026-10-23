@@ -7,6 +7,7 @@ from unittest.mock import patch
 import pytest
 
 from hci import corpus
+from hci.config import get_settings
 from hci.constants import Source
 
 
@@ -108,10 +109,12 @@ class TestFacts:
 
 
 def test_stamp_of_empty_data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    """An empty data dir stamps 0.0 instead of raising."""
+    """An empty data dir and a missing documents folder stamp 0.0 instead of raising."""
     # Arrange
     monkeypatch.setattr(corpus, "DATA_DIR", tmp_path / "empty")
     (tmp_path / "empty").mkdir()
+    monkeypatch.setenv("HCI_DOCUMENTS_DIR", str(tmp_path / "missing"))
+    get_settings.cache_clear()
     # Act / Assert
     assert corpus.stamp() == 0.0
 
