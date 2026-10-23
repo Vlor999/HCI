@@ -12,7 +12,7 @@ from hci.types import RecordChunk
 
 
 def _make_chunks(n: int = 2) -> list[RecordChunk]:
-    return [RecordChunk(f"c{i}", f"passage {i}", Source.MANUAL) for i in range(n)]
+    return [RecordChunk(f"c{i}", f"passage {i}", Source.DOCUMENT) for i in range(n)]
 
 
 def _make_answers(*scores: float, answerable: float = 0.9) -> dict:

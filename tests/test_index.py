@@ -6,7 +6,7 @@ from hci.types import Embed, RecordChunk
 
 
 def _make_chunk(id: str, text: str) -> RecordChunk:
-    return RecordChunk(id, text, Source.MANUAL)
+    return RecordChunk(id, text, Source.DOCUMENT)
 
 
 def _make_index(embed: Embed) -> HybridIndex:

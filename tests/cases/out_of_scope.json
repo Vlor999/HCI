@@ -2,9 +2,9 @@
   {"id": "oos-capital-of-france", "tags": ["out-of-scope"], "question": "What is the capital of France?", "scenario": null,
    "expect": {"answer_excludes": ["paris"]}},
   {"id": "oos-nonexistent-path", "tags": ["out-of-scope"], "question": "How long is path D?", "scenario": 0,
-   "expect": {"first": ["path-0-A", "path-0-B", "path-0-C"], "answer_excludes": ["path d is", "path d takes"]}},
+   "expect": {"first": ["data/paths.json#0/A", "data/paths.json#0/B", "data/paths.json#0/C"], "answer_excludes": ["path d is", "path d takes"]}},
   {"id": "oos-robot-price", "tags": ["out-of-scope"], "question": "How much does the robot cost?", "scenario": null,
    "expect": {"answer_excludes": ["$", "€"]}},
   {"id": "oos-stock-market", "tags": ["out-of-scope"], "question": "Will the stock market go up tomorrow?", "scenario": 1,
-   "expect": {"first": ["path-1-Y", "path-1-Z"], "answer_excludes": ["will go up", "will rise"]}}
+   "expect": {"first": ["data/paths.json#1/Y", "data/paths.json#1/Z"], "answer_excludes": ["will go up", "will rise"]}}
 ]

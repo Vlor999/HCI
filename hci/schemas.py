@@ -1,4 +1,4 @@
-"""API request models."""
+"""API request and response models."""
 
 from enum import StrEnum
 
@@ -30,3 +30,10 @@ class FactRequest(BaseModel):
 
     text: str = Field(..., min_length=1, max_length=500, description="The fact, one self-contained sentence.")
     scenario: int | None = Field(default=None, ge=0, description="Scenario it applies to; None for everywhere.")
+
+
+class DocumentInfo(BaseModel):
+    """An indexed document."""
+
+    name: str = Field(..., description="Path of the file inside the documents folder, e.g. `uploads/report.pdf`.")
+    chunks: int = Field(..., ge=0, description="Number of chunks indexed from it; 0 when it could not be read.")

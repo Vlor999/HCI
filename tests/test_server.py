@@ -3,7 +3,7 @@
 import json
 import threading
 from collections.abc import Iterator
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -12,7 +12,7 @@ from hci import server
 from hci.agent import reject
 from hci.config import get_settings
 from hci.constants import AGENT_PROPOSED_ON_PHONE, PROPOSALS_MARKER, STEP_MARKER
-from hci.rag import status
+from hci.rag import ExplanationPipeline, status
 from hci.types import Propose
 
 TOKEN = "test-token"
@@ -165,3 +165,119 @@ def test_markdown_libraries_are_served_locally(client: TestClient, path: str):
     # Assert
     assert response.status_code == 200
     assert "javascript" in response.headers["content-type"]
+
+
+class TestDocuments:
+    @pytest.fixture
+    def docs_client(self, client: TestClient, tmp_path, monkeypatch: pytest.MonkeyPatch, fake_embed) -> TestClient:
+        """Client over a real pipeline (fake embedder) whose documents folder is empty and temporary."""
+        monkeypatch.setenv("HCI_DOCUMENTS_DIR", str(tmp_path / "documents"))
+        monkeypatch.setenv("HCI_MAX_UPLOAD_MB", "0.001")
+        get_settings.cache_clear()
+        rag = ExplanationPipeline(embed=fake_embed, judge=False)
+        monkeypatch.setattr(server, "get_rag", lambda: rag)
+        return client
+
+    def _upload(self, client: TestClient, name: str, data: bytes = b"Path Q floods every spring.", headers=AUTH):
+        return client.post("/api/documents", headers=headers, files={"file": (name, data)})
+
+    def test_upload_needs_token(self, docs_client: TestClient):
+        """An upload without the token is refused with 401."""
+        # Act / Assert
+        assert self._upload(docs_client, "notes.md", headers={}).status_code == 401
+
+    def test_unsupported_type_is_415(self, docs_client: TestClient, tmp_path):
+        """A file type the index cannot read is refused with 415 and not saved."""
+        # Act
+        response = self._upload(docs_client, "photo.png")
+        # Assert
+        assert response.status_code == 415
+        assert not (tmp_path / "documents").exists()
+
+    def test_too_large_is_413(self, docs_client: TestClient):
+        """A file above `max_upload_mb` is refused with 413."""
+        # Act / Assert
+        assert self._upload(docs_client, "big.txt", b"word " * 400).status_code == 413
+
+    def test_traversal_name_stays_in_uploads(self, docs_client: TestClient, tmp_path):
+        """A name with `..` and folders is reduced to its base name inside the uploads folder."""
+        # Act
+        response = self._upload(docs_client, "../../.evil.md")
+        # Assert
+        assert response.json() == {"name": "uploads/evil.md", "chunks": 1}
+        assert [p.name for p in tmp_path.rglob("*.md")] == ["evil.md"]
+
+    def test_same_name_gets_a_unique_name(self, docs_client: TestClient):
+        """A second upload with the same name is saved next to the first, never over it."""
+        # Arrange
+        self._upload(docs_client, "notes.md")
+        # Act
+        response = self._upload(docs_client, "notes.md")
+        # Assert
+        assert response.json()["name"] == "uploads/notes-1.md"
+
+    def test_unreadable_file_is_422_and_removed(self, docs_client: TestClient, tmp_path):
+        """A file with no readable text is refused with 422 and deleted."""
+        # Act
+        response = self._upload(docs_client, "scan.pdf", b"not a pdf")
+        # Assert
+        assert response.status_code == 422
+        assert response.json()["detail"].startswith("Could not index scan.pdf: ")
+        assert not list((tmp_path / "documents").rglob("*.pdf"))
+
+    def test_uploaded_document_is_retrievable(self, docs_client: TestClient):
+        """Once uploaded, the document's chunk is in the context of a question it answers."""
+        # Arrange
+        self._upload(docs_client, "flood.md")
+        # Act
+        ids = [c.id for c in server.get_rag().retrieve("When does path Q flood?").chunks]
+        # Assert
+        assert any(i.endswith("uploads/flood.md#1") for i in ids)
+
+    @pytest.mark.parametrize(("headers", "status"), [({}, 401), (AUTH, 413)], ids=["no-token", "token"])
+    def test_oversized_body_is_refused_before_parsing(self, docs_client: TestClient, headers: dict, status: int):
+        """A body declared above the limit is refused from its headers: 401 without token, 413 with; never parsed."""
+        # Act
+        with patch("starlette.requests.MultiPartParser") as parser:
+            response = self._upload(docs_client, "big.md", b"x" * 200_000, headers=headers)
+        # Assert
+        assert response.status_code == status
+        parser.assert_not_called()
+
+    def test_upload_without_length_is_411(self, docs_client: TestClient):
+        """A streamed upload without Content-Length is refused, so its size is always known up front."""
+        # Act
+        response = docs_client.post("/api/documents", headers=AUTH, content=iter([b"--x\r\n"]))
+        # Assert
+        assert response.status_code == 411
+
+    def test_long_name_is_shortened(self, docs_client: TestClient):
+        """A file name too long for the file system is cut, keeping its extension."""
+        # Act
+        response = self._upload(docs_client, "a" * 300 + ".md")
+        # Assert
+        assert response.status_code == 200
+        assert response.json()["name"] == "uploads/" + "a" * 120 + ".md"
+
+    def test_write_failure_is_500_without_partial_file(self, docs_client: TestClient, tmp_path):
+        """A disk error while saving gives a clear 500 and leaves nothing in the uploads folder."""
+        # Arrange
+        uploads = tmp_path / "documents" / "uploads"
+        uploads.mkdir(parents=True)
+        uploads.chmod(0o500)
+        # Act
+        response = self._upload(docs_client, "notes.md")
+        # Assert
+        uploads.chmod(0o700)
+        assert response.status_code == 500
+        assert response.json()["detail"] == "Could not save the file on the server."
+        assert not list(uploads.iterdir())
+
+    def test_list_shows_indexed_documents(self, docs_client: TestClient):
+        """`GET /api/documents` lists each document with its chunk count."""
+        # Arrange
+        self._upload(docs_client, "flood.md")
+        # Act
+        listed = docs_client.get("/api/documents", headers=AUTH).json()
+        # Assert
+        assert listed == [{"name": "uploads/flood.md", "chunks": 1}]
