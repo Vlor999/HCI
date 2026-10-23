@@ -42,7 +42,7 @@ Options: `-s` sets the scenario index in `data/paths.json`. `-p` picks the provi
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `HCI_PROVIDER` | fastest local | `mlx`, `cuda`, `cpu`, `anthropic` (agent mode) |
-| `HCI_MODEL` | `mlx-community/gemma-4-e4b-it-4bit` (MLX), `Qwen/Qwen3-4B` (CUDA), `Qwen/Qwen3-0.6B` (CPU) | local generator. `-m` also picks the Claude model (default `claude-sonnet-5-5`). |
+| `HCI_MODEL` | `mlx-community/Qwen3-4B-4bit` (MLX), `Qwen/Qwen3-4B` (CUDA), `Qwen/Qwen3-0.6B` (CPU) | local generator. `-m` also picks the Claude model (default `claude-sonnet-5-5`). |
 | `HCI_EMBED_MODEL` | `BAAI/bge-small-en-v1.5` | embedder |
 | `ANTHROPIC_API_KEY` | | for `-p anthropic` |
 | `TYPESAFE_API_KEY` | | turns on the Jev judge |
@@ -91,14 +91,14 @@ or must not contain. `xfail` marks a known weakness, and the case still runs.
 
 `hci eval` on an M4 Pro (MLX, 45 cases):
 
-| Metric | Gemma 4 E4B (default) | Qwen3-4B |
+| Metric | Qwen3-4B (default) | Gemma 4 E4B (tested, not kept) |
 | --- | --- | --- |
 | Retrieval pass rate | 84 % (7 paraphrase misses marked `xfail`) | same |
 | Recall of expected chunks | 74 % | same |
-| Answer pass rate | 81 % | 90 % |
-| Retrieval latency (p50) | 6 ms | 7 ms |
-| First token (p50) | 0.8 s | 1.25 s |
-| Generation | 67 tokens/s | 85 tokens/s |
+| Answer pass rate | 90 % | 81 % |
+| Retrieval latency (p50) | 7 ms | 6 ms |
+| First token (p50) | 1.25 s | 0.8 s |
+| Generation | 85 tokens/s | 67 tokens/s |
 
 The report and slides are in `doc/robot-explain-yourself/`. The first version (Ollama, no retrieval) is in the git
 history.

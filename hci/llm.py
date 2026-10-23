@@ -9,7 +9,7 @@ Generate = Callable[[str, str], Iterator[str]]
 
 MAX_TOKENS = 1024
 DEFAULTS = {
-    "mlx": "mlx-community/gemma-4-e4b-it-4bit",
+    "mlx": "mlx-community/Qwen3-4B-4bit",
     "cuda": "Qwen/Qwen3-4B",
     "cpu": "Qwen/Qwen3-0.6B",
 }
