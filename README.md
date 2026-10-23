@@ -159,12 +159,14 @@ Cases live in `tests/cases/*.json` and follow `tests/cases/schema.json`: a quest
 facts, and what to expect (chunk ids that must or must not be retrieved, which chunk comes first, words the answer
 must or must not contain). `xfail` marks a known weakness.
 
-`hci eval` on an M4 Pro (MLX, 45 cases):
+Author run of `hci eval` on an M4 Pro (MLX, 45 cases), recorded on 2026-10-23 (commit b2d7654). Gemma is
+`mlx-community/gemma-4-e4b-it-4bit`, set with `-m`. Retrieval does not depend on the generator, so those two rows
+are the same for both:
 
 | Metric | Qwen3-4B (default) | Gemma 4 E4B (tested, not kept) |
 | --- | --- | --- |
-| Retrieval pass rate | 84 % (7 paraphrase misses marked `xfail`) | same |
-| Recall of expected chunks | 74 % | same |
+| Retrieval pass rate | 84 % (7 paraphrase misses marked `xfail`) | 84 % |
+| Recall of expected chunks | 74 % | 74 % |
 | Answer pass rate | 95 % | 81 % (before the Markdown prompt) |
 | Retrieval latency (p50) | 7 ms | 6 ms |
 | First token (p50) | 1.25 s | 0.8 s |
