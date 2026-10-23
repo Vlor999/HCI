@@ -111,24 +111,28 @@ front.
 Chunk ids are explicit file references, so a test or a citation points at a real file: `data/paths.json#0/A`
 (scenario 0, path A), `data/documents/sample_manual.md#3` (third chunk of the manual, counted from 1),
 `data/corrections/correction_1.md`, `data/explanations/sample_explanations.json#4` (array index). Operator facts
-keep `fact-<n>`: the facts file is runtime state outside git.
+keep `fact-<n>`: the facts file is runtime state outside git. Document ids are positional: editing a document
+renumbers the chunks after the edit, so a case that names one can silently point at another passage. pytest only
+checks that the id still exists, so re-check the cases that cite a document after editing it.
 
 The index is rebuilt in memory at startup, and again when a file under `data/`, the documents folder or the facts
-file changes, so a running server picks up new documents without a restart. There are only a few dozen chunks, so a vector database isn't needed yet.
+file changes, so a running server picks up new documents without a restart. Each file is parsed once per version
+(mtime and size), so a reload only re-reads what changed. There are only a few dozen chunks, so a vector database isn't needed yet.
 
 ## Documents
 
 Drop files into `data/documents/` (subfolders included), or upload them from the phone with **Add document**.
 Supported: Markdown, plain text, PDF (`pypdf`), Word `.docx` (`python-docx`) and Apple Pages. Hidden files and other
-types are ignored; a file that fails to parse is skipped with a warning and never breaks the index.
+types are ignored; a file that fails to parse is skipped with a warning and never breaks the index. Text files are
+read as UTF-8 (a BOM is dropped); other encodings are flagged in the log.
 
 Segmentation goes structure first, then size:
 
 | Format | Sections | Paragraphs |
 | --- | --- | --- |
 | `.md` | `#` headings; the heading path (`Robot manual > 1. Energy Management`) is the section title | blank lines |
-| `.docx` | `Title` and `Heading <n>` paragraph styles, same heading path | one per DOCX paragraph |
-| `.pdf` | one per page (`page 3`) | blank lines in the extracted text |
+| `.docx` | `Title` and `Heading <n>` paragraph styles, same heading path (Title above Heading 1) | one per DOCX paragraph, one per table row, in body order |
+| `.pdf` | one per page (`page 3`); ligatures normalised (NFKC) | blank lines in the extracted text |
 | `.txt` | none | blank lines |
 | `.pages` | exported to PDF, then as PDF | as PDF |
 
@@ -143,9 +147,13 @@ temporary PDF through the Pages app (`osascript`; the first run may ask to allow
 file is skipped with a warning: export it from Pages as PDF or DOCX and add that instead.
 
 Phone uploads (`POST /api/documents`, multipart, token required) land in `data/documents/uploads/` (git-ignored).
-The file name is reduced to its base name (no folders, no leading dot), and a name already taken gets `-1`, `-2`...
-An unsupported type gives 415, a file above `HCI_MAX_UPLOAD_MB` (default 20) gives 413, and a file with no readable
-text (a scanned PDF, say) gives 422 and is not kept. `GET /api/documents` lists the documents with their chunk
+The token holder is the operator: an upload is an operator action, and its text enters the grounding corpus with no
+further review, like a file dropped into `data/documents/`.
+The token and the declared size (`Content-Length`) are checked from the headers before the body is read: 401 without
+the token, 411 without a length, 413 above `HCI_MAX_UPLOAD_MB` (default 20). The file name is reduced to its base name
+(no folders, no leading dot, at most 120 bytes), and a name already taken gets `-1`, `-2`... An unsupported type gives
+415. A file that cannot be indexed (no readable text, as in a scanned PDF, or over a size bound below) gives 422 with
+the reason and is not kept. `GET /api/documents` lists the documents with their chunk
 counts.
 
 | Variable | Default | Purpose |
@@ -154,6 +162,9 @@ counts.
 | `HCI_CHUNK_WORDS` | `220` | max words per document chunk |
 | `HCI_CHUNK_OVERLAP_WORDS` | `40` | overlap between chunks of a section (must be below `HCI_CHUNK_WORDS`) |
 | `HCI_MAX_UPLOAD_MB` | `20` | largest upload |
+| `HCI_MAX_DOCX_EXPANDED_MB` | `100` | largest uncompressed DOCX, checked before opening it (zip bomb guard) |
+| `HCI_MAX_PDF_PAGES` | `500` | larger PDFs are skipped |
+| `HCI_MAX_DOCUMENT_CHARS` | `2000000` | documents with more extracted text are skipped |
 | `HCI_PAGES_EXPORT_TIMEOUT` | `60` | seconds for the Pages export |
 
 ## Test and evaluate
