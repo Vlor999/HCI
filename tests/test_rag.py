@@ -3,6 +3,7 @@ import json
 import numpy as np
 
 from hci import corpus, jev
+from hci.config import get_settings
 from hci.constants import NOT_FOUND
 from hci.index import Index, tokenize
 from hci.rag import RAG, text_only
@@ -18,7 +19,8 @@ def fake_embed(texts):
 
 
 def test_rag(tmp_path, monkeypatch):
-    monkeypatch.setattr(corpus, "FACTS", tmp_path / "facts.json")
+    monkeypatch.setenv("HCI_FACTS_FILE", str(tmp_path / "facts.json"))
+    get_settings.cache_clear()
     chunks = corpus.load()
     assert {c.source for c in chunks} == {"path", "manual", "correction", "example"}
     step_a = next(c for c in chunks if c.id == "path-0-A")
@@ -33,7 +35,7 @@ def test_rag(tmp_path, monkeypatch):
     assert len({c.id for c in ctx}) == len(ctx)
 
     rag.add_fact("Path B is flooded", scenario=0)
-    assert json.loads(corpus.FACTS.read_text())[0]["text"] == "Path B is flooded"
+    assert json.loads(get_settings().facts_file.read_text())[0]["text"] == "Path B is flooded"
     assert any(c.source == "fact" for c in rag.retrieve("anything", scenario=0).chunks)
 
     seen = {}
@@ -58,7 +60,8 @@ def test_rag(tmp_path, monkeypatch):
 def test_agent_tools(tmp_path, monkeypatch):
     from hci.agent import Agent
 
-    monkeypatch.setattr(corpus, "FACTS", tmp_path / "facts.json")
+    monkeypatch.setenv("HCI_FACTS_FILE", str(tmp_path / "facts.json"))
+    get_settings.cache_clear()
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test")
     agent = Agent(RAG(embed=fake_embed, judge=False))
     tools = {t.name: t for t in agent.tools}
@@ -71,5 +74,5 @@ def test_agent_tools(tmp_path, monkeypatch):
     seen = []
     agent.propose = lambda text, scenario: seen.append((text, scenario)) or "Proposed."
     assert tools["add_context"].call({"text": "Path C is closed.", "scenario": 0}) == "Proposed."
-    assert seen == [("Path C is closed.", 0)] and not corpus.FACTS.exists()
+    assert seen == [("Path C is closed.", 0)] and not get_settings().facts_file.exists()
     assert "Winter scenario" in tools["list_scenarios"].call({})

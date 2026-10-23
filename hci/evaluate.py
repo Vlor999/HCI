@@ -6,8 +6,8 @@ import tempfile
 import time
 from pathlib import Path
 
-from hci import corpus
 from hci.agent import answerer
+from hci.config import get_settings
 from hci.constants import CASES_DIR, STEP_MARKER
 from hci.device import backend
 from hci.index import default_embedder
@@ -26,7 +26,9 @@ def run(provider: str | None, model: str | None, answers: bool = True) -> dict:
     t0 = time.perf_counter()
     embed = default_embedder()
     load_embed = time.perf_counter() - t0
-    facts_file, corpus.FACTS = corpus.FACTS, Path(tempfile.mkdtemp()) / "facts.json"  # never touch real facts
+    settings = get_settings()
+    facts_file = settings.facts_file
+    settings.facts_file = Path(tempfile.mkdtemp()) / "facts.json"  # never touch real facts
     rag = RAG(embed=embed, judge=False)
     t0 = time.perf_counter()
     answer = answerer(rag, provider, model) if answers else None
@@ -35,7 +37,7 @@ def run(provider: str | None, model: str | None, answers: bool = True) -> dict:
     rows, retrieve_t, first_t, tok_s = [], [], [], []
     try:
         for case in cases():
-            corpus.FACTS.unlink(missing_ok=True)
+            settings.facts_file.unlink(missing_ok=True)
             rag.reload()
             for fact in case.get("facts", []):
                 rag.add_fact(fact["text"], fact.get("scenario"))
@@ -68,7 +70,7 @@ def run(provider: str | None, model: str | None, answers: bool = True) -> dict:
                 )
             rows.append(row)
     finally:
-        corpus.FACTS = facts_file
+        settings.facts_file = facts_file
 
     def rate(key):
         vals = [r[key] for r in rows if r.get(key) is not None]

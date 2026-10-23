@@ -3,6 +3,7 @@
 from collections.abc import Iterator, Sequence
 
 from hci import corpus, jev
+from hci.config import get_settings
 from hci.constants import NOT_FOUND, STEP_MARKER, SYSTEM, Source
 from hci.index import Index, default_embedder
 from hci.types import Embed, Generate, RecordChunk, Retrieval
@@ -32,7 +33,7 @@ class RAG:
         self.reload()
 
     def retrieve(
-        self, question: str, scenario: int | None = None, history: Sequence[tuple[str, str]] = (), k: int = 6
+        self, question: str, scenario: int | None = None, history: Sequence[tuple[str, str]] = (), k: int | None = None
     ) -> Retrieval:
         """Pinned: the scenario's steps and facts, then facts that apply everywhere. Other scenarios are never searched.
         Not answerable (Jev) -> empty chunks, `answerable=False`."""
@@ -45,7 +46,7 @@ class RAG:
         other = {c.id for c in scoped if scenario is not None and c.scenario not in (None, scenario)}
         # follow-ups like "what does it compare it against?" only make sense with the previous question
         query = f"{history[-1][0]} {question}" if history else question
-        hits = self.index.search(query, k, skip=other | {c.id for c in pinned})
+        hits = self.index.search(query, get_settings().k if k is None else k, skip=other | {c.id for c in pinned})
         if self.judge:
             keep, answerable = jev.judge(query, pinned + hits)
             if not answerable:
@@ -61,7 +62,7 @@ class RAG:
             passages = (
                 f"OPERATOR UPDATES (newest information, they override the records below):\n{updates}\n\n{passages}"
             )
-        past = "".join(f"Q: {q}\nA: {a}\n" for q, a in history[-3:])
+        past = "".join(f"Q: {q}\nA: {a}\n" for q, a in history[-get_settings().history_turns :])
         return (
             f"Context:\n{passages}\n\n"
             + (f"Earlier in this conversation:\n{past}\n" if past else "")

@@ -1,17 +1,15 @@
 """Hybrid retrieval: dense embeddings + BM25, fused with reciprocal rank fusion."""
 
 import math
-import os
 import re
 from collections import Counter
 from collections.abc import Collection
 
 import numpy as np
 
+from hci.config import get_settings
 from hci.constants import BM25_B, BM25_K1, QUERY_PREFIX, RRF_K
 from hci.types import Embed, RecordChunk
-
-EMBED_MODEL = os.environ.get("HCI_EMBED_MODEL", "BAAI/bge-small-en-v1.5")
 
 
 def default_embedder() -> Embed:
@@ -19,7 +17,7 @@ def default_embedder() -> Embed:
 
     from hci.device import torch_device
 
-    model = SentenceTransformer(EMBED_MODEL, device=torch_device())
+    model = SentenceTransformer(get_settings().embed_model, device=torch_device())
     return lambda texts: model.encode(texts, normalize_embeddings=True, convert_to_numpy=True)
 
 
@@ -47,7 +45,7 @@ class Index:
             scores += idf * tf * (k1 + 1) / (tf + k1 * (1 - b + b * self.lens / avg))
         return scores
 
-    def search(self, query: str, k: int = 6, skip: Collection[str] = ()) -> list[RecordChunk]:
+    def search(self, query: str, k: int, skip: Collection[str] = ()) -> list[RecordChunk]:
         dense = self.vecs @ self.embed([QUERY_PREFIX + query])[0]
         fused = np.zeros(len(self.chunks))
         for scores in (dense, self.bm25(query)):

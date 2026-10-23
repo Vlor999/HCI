@@ -3,10 +3,9 @@
 import json
 import re
 
-from hci.constants import CORRECTIONS_DIR, DATA_DIR, EXPLANATIONS_FILE, FACTS_FILE, MANUAL_FILE, PATHS_FILE, Source
+from hci.config import get_settings
+from hci.constants import CORRECTIONS_DIR, DATA_DIR, EXPLANATIONS_FILE, MANUAL_FILE, PATHS_FILE, Source
 from hci.types import RecordChunk
-
-FACTS = FACTS_FILE
 
 
 def stamp() -> float:
@@ -41,11 +40,12 @@ def step_text(desc: str, s: dict) -> str:
 
 
 def load_facts() -> list[dict]:
-    return json.loads(FACTS.read_text()) if FACTS.exists() else []
+    facts = get_settings().facts_file
+    return json.loads(facts.read_text()) if facts.exists() else []
 
 
 def add_fact(text: str, scenario: int | None) -> None:
-    FACTS.write_text(json.dumps(load_facts() + [{"text": text, "scenario": scenario}], indent=2))
+    get_settings().facts_file.write_text(json.dumps(load_facts() + [{"text": text, "scenario": scenario}], indent=2))
 
 
 def load() -> list[RecordChunk]:

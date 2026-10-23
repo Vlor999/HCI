@@ -4,7 +4,6 @@ The model never writes memory by itself: add_context goes through `propose`, whi
 """
 
 import json
-import os
 import sys
 from collections.abc import Iterator, Sequence
 
@@ -12,7 +11,8 @@ import anthropic
 from anthropic import beta_tool
 
 from hci import corpus, llm
-from hci.constants import AGENT_BETAS, AGENT_SYSTEM, CLAUDE_MODEL
+from hci.config import get_settings
+from hci.constants import AGENT_BETAS, AGENT_SYSTEM
 from hci.rag import RAG, status
 from hci.types import Answer, Propose
 
@@ -22,8 +22,8 @@ def reject(text: str, scenario: int | None) -> str:
 
 
 class Agent:
-    def __init__(self, rag: RAG, model: str = CLAUDE_MODEL):
-        self.rag, self.model, self.propose = rag, model, reject
+    def __init__(self, rag: RAG, model: str | None = None):
+        self.rag, self.model, self.propose = rag, model or get_settings().claude_model, reject
         self.client = anthropic.Anthropic()
         self.searches, self.events = 0, []  # events: tool results, shown as steps
 
@@ -72,14 +72,15 @@ class Agent:
         ]
         where = f"The current scenario is {scenario}." if scenario is not None else "No current scenario."
         messages.append({"role": "user", "content": f"{where}\n\n{question}"})
+        settings = get_settings()
         runner = self.client.beta.messages.tool_runner(
             model=self.model,
-            max_tokens=16000,
+            max_tokens=settings.agent_max_tokens,
             system=AGENT_SYSTEM,
             tools=self.tools,
             messages=messages,
-            max_iterations=8,
-            output_config={"effort": "medium"},
+            max_iterations=settings.agent_max_iterations,
+            output_config={"effort": settings.agent_effort},
             betas=list(AGENT_BETAS),
             fallbacks="default",
             stream=True,
@@ -110,8 +111,8 @@ def describe(tool: str, args: dict) -> str:
 
 def answerer(rag: RAG, provider: str | None = None, model: str | None = None) -> Answer:
     """Claude runs the agent loop; local models run the fixed RAG pipeline (too small for reliable tool use)."""
-    if (provider or os.environ.get("HCI_PROVIDER")) == "anthropic":
-        print(f"Model: {model or CLAUDE_MODEL} (Anthropic, agent mode)", file=sys.stderr)
-        return Agent(rag, model or CLAUDE_MODEL).answer
+    if (provider or get_settings().provider) == "anthropic":
+        print(f"Model: {model or get_settings().claude_model} (Anthropic, agent mode)", file=sys.stderr)
+        return Agent(rag, model).answer
     gen = llm.load(provider, model)
     return lambda question, scenario=None, history=(), propose=reject: rag.answer(question, gen, scenario, history)

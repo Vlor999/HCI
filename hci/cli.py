@@ -1,6 +1,7 @@
 import argparse
 
 from hci import corpus
+from hci.config import get_settings
 from hci.constants import COMMANDS, STEP_MARKER
 
 
@@ -17,8 +18,8 @@ def main() -> None:
         "--no-answers", action="store_true", help="retrieval only, no LLM"
     )
     serve = sub.add_parser("serve", help="HTTP API + phone web app")
-    serve.add_argument("--host", default="0.0.0.0")
-    serve.add_argument("--port", type=int, default=8000)
+    serve.add_argument("--host", default=get_settings().host)
+    serve.add_argument("--port", type=int, default=get_settings().port)
     a = p.parse_args()
 
     if a.cmd == "serve":

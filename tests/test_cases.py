@@ -7,7 +7,7 @@ from pathlib import Path
 import jsonschema
 import pytest
 
-from hci import corpus
+from hci.config import get_settings
 from hci.rag import RAG
 
 CASES_DIR = Path(__file__).parent / "cases"
@@ -34,7 +34,8 @@ def test_unique_ids():
 
 
 def context(case, tmp_path, monkeypatch) -> list[str]:
-    monkeypatch.setattr(corpus, "FACTS", tmp_path / "facts.json")
+    monkeypatch.setenv("HCI_FACTS_FILE", str(tmp_path / "facts.json"))
+    get_settings.cache_clear()
     rag = RAG(embed=embedder(), judge=False)
     for fact in case.get("facts", []):
         rag.add_fact(fact["text"], fact.get("scenario"))

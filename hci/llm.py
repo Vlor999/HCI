@@ -1,14 +1,12 @@
 """Local answer generators. Each one is `(system, user) -> iterator of text chunks`."""
 
-import os
 import sys
 from collections.abc import Iterator
 
+from hci.config import get_settings
 from hci.constants import LOCAL_MODELS
 from hci.device import backend, torch_device
 from hci.types import Generate
-
-MAX_TOKENS = 1024
 
 
 def messages(system: str, user: str) -> list[dict]:
@@ -23,7 +21,7 @@ def mlx(name: str) -> Generate:
     def gen(system: str, user: str) -> Iterator[str]:
         # enable_thinking only matters for Qwen3 templates, other templates ignore it
         prompt = tok.apply_chat_template(messages(system, user), add_generation_prompt=True, enable_thinking=False)
-        for r in stream_generate(model, tok, prompt, max_tokens=MAX_TOKENS):
+        for r in stream_generate(model, tok, prompt, max_tokens=get_settings().local_max_tokens):
             yield r.text
 
     return gen
@@ -44,7 +42,8 @@ def hf(name: str) -> Generate:
         ).to(device)
         streamer = TextIteratorStreamer(tok, skip_prompt=True, skip_special_tokens=True)
         Thread(
-            target=model.generate, kwargs={"input_ids": ids, "max_new_tokens": MAX_TOKENS, "streamer": streamer}
+            target=model.generate,
+            kwargs={"input_ids": ids, "max_new_tokens": get_settings().local_max_tokens, "streamer": streamer},
         ).start()
         yield from streamer
 
@@ -53,7 +52,8 @@ def hf(name: str) -> Generate:
 
 def load(provider: str | None = None, model: str | None = None) -> Generate:
     """provider: mlx | cuda | cpu. Defaults to the fastest local backend. Claude goes through hci.agent."""
-    provider = provider or os.environ.get("HCI_PROVIDER") or backend()
-    name = model or os.environ.get("HCI_MODEL") or LOCAL_MODELS[provider]
+    settings = get_settings()
+    provider = provider or settings.provider or backend()
+    name = model or settings.model or LOCAL_MODELS[provider]
     print(f"Model: {name} (local, {provider})", file=sys.stderr)
     return mlx(name) if provider == "mlx" else hf(name)

@@ -1,7 +1,6 @@
 """HTTP API + mobile web app. The phone talks to this server; generation runs here (on-prem) or on Anthropic."""
 
 import json
-import os
 import secrets
 import threading
 from functools import cache
@@ -10,13 +9,14 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
 
 from hci import corpus
-from hci.agent import Answer, answerer
+from hci.agent import answerer
+from hci.config import get_settings
 from hci.constants import PROPOSALS_MARKER, WEB_PAGE
 from hci.device import backend
 from hci.rag import RAG
 from hci.schemas import AskRequest, FactRequest
+from hci.types import Answer
 
-TOKEN = os.environ.get("HCI_TOKEN") or secrets.token_urlsafe(16)
 PROVIDERS = [backend(), "anthropic"]
 
 app = FastAPI(title="HCI robot explainer")
@@ -30,7 +30,7 @@ def get_rag() -> RAG:
 
 
 def auth(authorization: str = Header("")) -> None:
-    if not secrets.compare_digest(authorization, f"Bearer {TOKEN}"):
+    if not secrets.compare_digest(authorization, f"Bearer {get_settings().token}"):
         raise HTTPException(401, "bad token")
 
 
@@ -82,5 +82,5 @@ def run(host: str, port: int) -> None:
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
         s.connect(("10.255.255.255", 1))  # no packet sent, just picks the LAN interface
         ip = s.getsockname()[0] if host == "0.0.0.0" else host
-    print(f"Open on your phone (same Wi-Fi): http://{ip}:{port}/#{TOKEN}")
+    print(f"Open on your phone (same Wi-Fi): http://{ip}:{port}/#{get_settings().token}")
     uvicorn.run(app, host=host, port=port)
