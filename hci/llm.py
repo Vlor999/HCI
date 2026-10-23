@@ -1,6 +1,7 @@
 """Local answer generators. Each one is `(system, user) -> iterator of text chunks`."""
 
 import os
+import sys
 from collections.abc import Callable, Iterator
 
 from hci.device import backend, torch_device
@@ -59,4 +60,5 @@ def load(provider: str | None = None, model: str | None = None) -> Generate:
     """provider: mlx | cuda | cpu. Defaults to the fastest local backend. Claude goes through hci.agent."""
     provider = provider or os.environ.get("HCI_PROVIDER") or backend()
     name = model or os.environ.get("HCI_MODEL") or DEFAULTS[provider]
+    print(f"Model: {name} (local, {provider})", file=sys.stderr)
     return mlx(name) if provider == "mlx" else hf(name)

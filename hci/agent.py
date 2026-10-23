@@ -5,6 +5,7 @@ The model never writes memory by itself: add_context goes through `propose`, whi
 
 import json
 import os
+import sys
 from collections.abc import Callable, Iterator, Sequence
 
 import anthropic
@@ -106,6 +107,7 @@ class Agent:
 def answerer(rag: RAG, provider: str | None = None, model: str | None = None) -> Answer:
     """Claude runs the agent loop; local models run the fixed RAG pipeline (too small for reliable tool use)."""
     if (provider or os.environ.get("HCI_PROVIDER")) == "anthropic":
+        print(f"Model: {model or MODEL} (Anthropic, agent mode)", file=sys.stderr)
         return Agent(rag, model or MODEL).answer
     gen = llm.load(provider, model)
     return lambda question, scenario=None, history=(), propose=reject: rag.answer(question, gen, scenario, history)
