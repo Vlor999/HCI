@@ -101,21 +101,32 @@ front.
 ## Metrics and dashboard
 
 Every answer (`hci ask`, `hci chat`, the phone, `hci eval`) appends events to `logs/metrics.jsonl` (git-ignored), one
-JSON object per line. Each line has `kind`, `ts` (epoch seconds), `source` (`cli`, `server`, `eval`) and a
-`request_id` that ties together the events of one answer:
+JSON object per line. Each line has `kind`, `ts` (epoch seconds), `source` (`cli`, `server`, `eval`), a
+`request_id` that ties together the events of one answer, and a `conversation_id`: one per `hci chat` session (or
+`hci ask` call), one per phone conversation (the page makes a random id, **New conversation** starts another; it is
+sent as `conversation_id` in `/api/ask`), one per `hci eval` run.
 
 | `kind` | Fields |
 | --- | --- |
-| `request` | provider, model, scenario, `question_chars`, `ttft_ms` (first answer text, steps excluded), `total_ms`, `itl_mean_ms` / `itl_p50_ms` / `itl_p95_ms` / `itl_max_ms` (gaps between streamed text pieces), `output_pieces`, `output_tokens`, `tokens_per_s`, `input_tokens`, Claude `cache_creation_input_tokens` / `cache_read_input_tokens`, `model_ms` / `tool_ms` (Claude), `stop_reason`, `refusal`, `fallback_model`, `error` (class name) |
+| `request` | provider, model, scenario, `question_chars`, `ttft_ms` (first answer text, steps excluded), `total_ms`, `itl_mean_ms` / `itl_p50_ms` / `itl_p95_ms` / `itl_max_ms` (gaps between streamed text pieces), `output_pieces`, `output_tokens`, `tokens_per_s`, `input_tokens`, Claude `cache_creation_input_tokens` / `cache_read_input_tokens`, `model_ms` / `tool_ms` (Claude), `stop_reason`, `refusal`, `fallback_model`, `error` (class name), `cost_usd`, `cost` (by component), `price_unknown` |
 | `retrieval` | `latency_ms` (Jev included), `k`, `chunks`, `pinned`, `judged`, `answerable` |
-| `jev` | `latency_ms`, `network_ms` (httpx `elapsed`), `questions`, `passages_kept` / `passages_total`, `answerable_p`, Jev `input_tokens` / `output_tokens`, `model`, `fallback`, `error` |
+| `jev` | `latency_ms`, `network_ms` (httpx `elapsed`), `questions`, `passages_kept` / `passages_total`, `answerable_p`, Jev `input_tokens` / `output_tokens`, `model`, `fallback`, `error`, `cost_usd`, `price_unknown` |
 | `tool` | agent tool name, `duration_ms`, `ok`, `result_chars`, `passages` (for `query_context`) |
-| `model_turn` | one Claude turn: `duration_ms` (request to final message, tools excluded), usage tokens, `stop_reason`, `fallback_model` |
+| `model_turn` | one Claude turn: `duration_ms` (request to final message, tools excluded), usage tokens, `stop_reason`, `fallback_model`, `cost_usd`, `cost`, `price_unknown` |
 
 Token counts are the model's own: MLX `stream_generate` responses, the HF tokenizer on the generated text, Claude's
 `usage` summed over turns (thinking and tool calls included). `tokens_per_s` divides by the text streaming span for
 local models and by `model_ms` for Claude, whose final text can arrive in one burst. Eval events use source `eval`,
 so runs can be compared; the JSON report of `hci eval` is unchanged.
+
+**Cost** is an estimate: list prices applied to the usage the APIs report (no discounts, no batch rates). Each
+Claude turn is priced by the model that answered (`response.model`, the fallback model when the server fell back),
+input, output, cache write (1.25 x input, 5-minute cache) and cache read apart; a request sums its turns and its Jev
+calls. Prices live in `MODEL_PRICES` in `hci/constants.py`, in USD per million tokens, with the date they were copied
+(`PRICES_DATE`). A model or a component that is not listed is never guessed: its cost is `null` and
+`price_unknown` is set (the request's cost then covers the priced parts only). Local models cost 0. Jev does not
+publish prices, so set them from console.typesafe.ai: `HCI_JEV_PRICE_INPUT_PER_MTOK` and
+`HCI_JEV_PRICE_OUTPUT_PER_MTOK`; until then the Jev cost is `null` and the dashboard says "Jev price not set".
 
 **Privacy**: the question text is not logged, only its length (`HCI_METRICS_LOG_QUESTIONS=true` adds it). Document
 contents, tool inputs and results, API keys and the token are never logged. `HCI_METRICS_ENABLED=false` turns it off.
@@ -123,7 +134,9 @@ The file rotates to `metrics.jsonl.1` at `HCI_METRICS_MAX_MB` (default 10); one 
 
 The dashboard polls the log every 3 s: TTFT over time and its distribution per model, inter-token latency p50/p95,
 tokens/s, Claude tokens per request and totals, Jev latency (total and network) and tokens, retrieval latency, tool
-calls, errors and fallbacks, and the last requests. Chart.js 4.5.0 is vendored in `web/vendor/`, so it works offline.
+calls, errors and fallbacks, and the last requests. Cost: today, last 7 days and the whole log (current file plus its
+backup), average per answer, Anthropic and Jev totals, cumulative cost per model, the share of each component, cost
+per answer, and conversations sorted by cost (click one to see its messages). Chart.js 4.5.0 is vendored in `web/vendor/`, so it works offline.
 
 ```sh
 uv run hci dashboard --open   # light server on http://127.0.0.1:8790/dashboard: no model, embedder or RAG loaded
