@@ -105,6 +105,7 @@ EXPLANATIONS_FILE = DATA_DIR / "explanations" / "sample_explanations.json"
 FACTS_FILE = DATA_DIR / "facts.json"
 WEB_PAGE = ROOT_DIR / "web" / "index.html"
 VENDOR_DIR = ROOT_DIR / "web" / "vendor"  # pinned marked + DOMPurify, served locally (works offline)
+METRICS_FILE = ROOT_DIR / "logs" / "metrics.jsonl"
 CASES_DIR = ROOT_DIR / "tests" / "cases"
 
 
@@ -127,6 +128,17 @@ COMMANDS = {
     "/help": "list commands",
     "/exit": "quit",
 }
+
+# --- Metrics -----------------------------------------------------------------
+
+
+class MetricSource(StrEnum):
+    """What produced an answer's metric events."""
+
+    CLI = "cli"
+    SERVER = "server"
+    EVAL = "eval"
+
 
 # --- agent/server ------------------------------------------------------------
 

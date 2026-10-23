@@ -17,3 +17,4 @@ data/facts.json
 *_review.md
 .worktrees/
 data/documents/uploads/
+logs/

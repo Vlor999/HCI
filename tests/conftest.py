@@ -27,11 +27,14 @@ def _embed(texts: list[str]) -> np.ndarray:
 
 @pytest.fixture(autouse=True)
 def facts_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
-    """Every test gets fresh settings, no API key from the shell, and its own facts file."""
+    """Every test gets fresh settings, no API key from the shell, and its own facts and metrics files."""
     for name in ("ANTHROPIC_API_KEY", "TYPESAFE_API_KEY", "HCI_PROVIDER", "HCI_MODEL", "HCI_TOKEN", "HCI_K"):
+        monkeypatch.delenv(name, raising=False)
+    for name in ("HCI_METRICS_ENABLED", "HCI_METRICS_MAX_MB", "HCI_METRICS_LOG_QUESTIONS"):
         monkeypatch.delenv(name, raising=False)
     path = tmp_path / "facts.json"
     monkeypatch.setenv("HCI_FACTS_FILE", str(path))
+    monkeypatch.setenv("HCI_METRICS_FILE", str(tmp_path / "metrics.jsonl"))  # never the repo's logs/
     get_settings.cache_clear()
     yield path
     get_settings.cache_clear()

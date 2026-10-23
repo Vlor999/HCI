@@ -8,7 +8,7 @@ from typing import Literal
 from pydantic import AliasChoices, Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from hci.constants import CLAUDE_MODEL, DOCUMENTS_DIR, FACTS_FILE
+from hci.constants import CLAUDE_MODEL, DOCUMENTS_DIR, FACTS_FILE, METRICS_FILE
 from hci.schemas import Provider
 
 
@@ -63,6 +63,17 @@ class Settings(BaseSettings):
     )
     pages_export_timeout: float = Field(
         default=60, gt=0, description="Seconds allowed for the Pages app to export a .pages file to PDF."
+    )
+
+    metrics_enabled: bool = Field(default=True, description="Append per-answer metric events to `metrics_file`.")
+    metrics_file: Path = Field(default=METRICS_FILE, description="JSONL file of metric events (git-ignored).")
+    metrics_max_mb: float = Field(
+        default=10,
+        gt=0,
+        description="Size at which the metrics file is rotated to `<name>.1` (one backup kept), in MB.",
+    )
+    metrics_log_questions: bool = Field(
+        default=False, description="Also log the question text in request events; off by default, only its length."
     )
 
     # --- agent/server ---
