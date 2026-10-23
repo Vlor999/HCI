@@ -62,7 +62,7 @@ Requires [uv](https://github.com/astral-sh/uv) and Python 3.12.
 uv sync
 uv run hci -s 0 ask "In which order should I take the paths to finish first?"
 uv run hci -s 0 chat                                   # follow-ups and slash commands
-uv run hci fact -s 2 "Path Q is closed for maintenance"
+uv run hci -s 2 fact "Path Q is closed for maintenance"
 uv run hci serve                                       # phone app, see below
 ```
 
