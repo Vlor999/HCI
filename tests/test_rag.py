@@ -1,78 +1,128 @@
-import json
+"""Tests for hci.rag: pinning, scenario isolation, history, the Jev gate and the prompt."""
 
-import numpy as np
+from unittest.mock import MagicMock, patch
 
-from hci import corpus, jev
+import pytest
+
 from hci.config import get_settings
-from hci.constants import NOT_FOUND
-from hci.index import HybridIndex, tokenize
-from hci.rag import ExplanationPipeline, text_only
+from hci.constants import NOT_FOUND, STEP_MARKER, Source
+from hci.rag import ExplanationPipeline, status, text_only
+from hci.types import RecordChunk
 
 
-def fake_embed(texts):
-    """Hashed bag of words: deterministic, no model download."""
-    v = np.zeros((len(texts), 256))
-    for i, t in enumerate(texts):
-        for w in tokenize(t):
-            v[i, hash(w) % 256] += 1
-    return v / np.maximum(np.linalg.norm(v, axis=1, keepdims=True), 1e-9)
+def _make_chunk(id: str, source: Source = Source.PATH, text: str = "text") -> RecordChunk:
+    return RecordChunk(id, text, source)
 
 
-def test_rag(tmp_path, monkeypatch):
-    monkeypatch.setenv("HCI_FACTS_FILE", str(tmp_path / "facts.json"))
-    get_settings.cache_clear()
-    chunks = corpus.load()
-    assert {c.source for c in chunks} == {"path", "manual", "correction", "example"}
-    step_a = next(c for c in chunks if c.id == "path-0-A")
-    assert "travel time 6.0 min" in step_a.text  # 120 m at 1.2 km/h
-
-    top = HybridIndex(chunks, fake_embed).search("energy recharge power source", k=3)
-    assert any(c.id == "manual-1" for c in top), [c.id for c in top]
-
-    rag = ExplanationPipeline(embed=fake_embed, judge=False)
-    ctx = rag.retrieve("which path is fastest?", scenario=0).chunks
-    assert [c.id for c in ctx[:3]] == ["path-0-A", "path-0-B", "path-0-C"]  # current scenario pinned first
-    assert len({c.id for c in ctx}) == len(ctx)
-
-    rag.add_fact("Path B is flooded", scenario=0)
-    assert json.loads(get_settings().facts_file.read_text())[0]["text"] == "Path B is flooded"
-    assert any(c.source == "fact" for c in rag.retrieve("anything", scenario=0).chunks)
-
-    seen = {}
-
-    def gen(system, user):
-        return iter([seen.setdefault("user", user)])
-
-    assert "Question: why C?" in text_only(rag.answer("why C?", gen, scenario=0))
-    assert "[1] (path)" in seen["user"]
-
-    # Jev: request shape + gating
-    body = jev.request("q", ctx[:2])
-    assert set(body["questions"]) == {"p0", "p1", "answerable"} and body["state"]["passages"]["p0"] == ctx[0].text
-    keep, ok = jev.parse({"p0": {"noul": 0.9}, "p1": {"noul": 0.1}, "answerable": {"noul": 0.8}}, ctx[:2])
-    assert keep == {ctx[0].id} and ok
-
-    rag.judge = True
-    monkeypatch.setattr(jev, "judge", lambda q, c: (set(), False))
-    assert text_only(rag.answer("weather on mars?", gen)) == NOT_FOUND
+def _ids(rag: ExplanationPipeline, question: str, scenario: int | None, **kwargs) -> list[str]:
+    return [c.id for c in rag.retrieve(question, scenario, **kwargs).chunks]
 
 
-def test_agent_tools(tmp_path, monkeypatch):
-    from hci.agent import AgentRun
+class TestRetrieve:
+    def test_current_scenario_pinned_first(self, rag):
+        """The current scenario's steps open the context, whatever the question."""
+        # Act
+        ids = _ids(rag, "battery recharge", 0)
+        # Assert
+        assert ids[:3] == ["path-0-A", "path-0-B", "path-0-C"]
+        assert len(ids) == len(set(ids))
 
-    monkeypatch.setenv("HCI_FACTS_FILE", str(tmp_path / "facts.json"))
-    get_settings.cache_clear()
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "test")
-    agent = AgentRun(ExplanationPipeline(embed=fake_embed, judge=False))
-    tools = {t.name: t for t in agent.tools}
-    assert set(tools) == {"query_context", "add_context", "list_scenarios"}
+    @pytest.mark.parametrize("question", ["path Y heavy load", "winter snow on path P", "which path is fastest?"])
+    def test_other_scenarios_never_in_context(self, rag, question):
+        """Steps of other scenarios are never searched, even when the question names them."""
+        # Act
+        ids = _ids(rag, question, 0)
+        # Assert
+        assert not [i for i in ids if i.startswith(("path-1-", "path-2-"))]
 
-    out = tools["query_context"].call({"query": "fastest path", "scenario": 0})
-    assert out.startswith("[1.1] (path)") and "travel time" in out
+    def test_scenario_and_global_facts_pinned(self, rag):
+        """The scenario's facts and facts without scenario are pinned; other scenarios' facts are not."""
+        # Arrange
+        rag.add_fact("Path A is flooded", 0)
+        rag.add_fact("Path Y is closed", 1)
+        rag.add_fact("The forest is closed today", None)
+        # Act
+        ids = _ids(rag, "battery recharge", 0, k=0)
+        # Assert
+        assert ids == ["path-0-A", "path-0-B", "path-0-C", "fact-0", "fact-2"]
 
-    # add_context only proposes; the operator callback decides
-    seen = []
-    agent.propose = lambda text, scenario: seen.append((text, scenario)) or "Proposed."
-    assert tools["add_context"].call({"text": "Path C is closed.", "scenario": 0}) == "Proposed."
-    assert seen == [("Path C is closed.", 0)] and not get_settings().facts_file.exists()
-    assert "Winter scenario" in tools["list_scenarios"].call({})
+    def test_follow_up_searched_with_previous_question(self, rag):
+        """A follow-up is searched together with the previous question."""
+        # Arrange
+        history = [("energy recharge power source?", "The station.")]
+        # Act
+        without, with_history = _ids(rag, "and then?", None, k=3), _ids(rag, "and then?", None, history=history, k=3)
+        # Assert
+        assert "manual-1" not in without
+        assert "manual-1" in with_history
+
+
+class TestJevGate:
+    def test_unanswerable_question_gets_not_found(self, rag):
+        """When Jev says the records don't answer, the LLM is skipped and NOT_FOUND is the answer."""
+        # Arrange
+        rag.judge = True
+        llm = MagicMock()
+        # Act
+        with patch("hci.rag.jev.judge", return_value=(set(), False)):
+            answer = text_only(rag.answer("weather on mars?", llm))
+        # Assert
+        assert answer == NOT_FOUND
+        llm.assert_not_called()
+
+    def test_irrelevant_hits_dropped_pinned_kept(self, rag):
+        """Jev filters search hits only; pinned scenario steps always stay."""
+        # Arrange
+        rag.judge = True
+        # Act
+        with patch("hci.rag.jev.judge", return_value=({"manual-1"}, True)) as judge:
+            ids = _ids(rag, "energy recharge power source", 0)
+        # Assert
+        assert ids == ["path-0-A", "path-0-B", "path-0-C", "manual-1"]
+        judge.assert_called_once()
+
+
+class TestPrompt:
+    def test_facts_get_their_own_section_first(self, rag):
+        """Operator updates sit in a section above the records, numbered like the context."""
+        # Arrange
+        ctx = [_make_chunk("path-0-A", text="Path A"), _make_chunk("fact-0", Source.FACT, "Path A is flooded")]
+        # Act
+        prompt = rag.prompt("why?", ctx)
+        # Assert
+        updates, records = prompt.split("[2] Path A is flooded")
+        assert "OPERATOR UPDATES" in updates
+        assert "[1] (path) Path A" in records
+
+    def test_no_updates_section_without_facts(self, rag):
+        """Without facts, the prompt has no operator updates header."""
+        # Act
+        prompt = rag.prompt("why?", [_make_chunk("path-0-A")])
+        # Assert
+        assert "OPERATOR UPDATES" not in prompt
+        assert prompt.endswith("Question: why?")
+
+    def test_history_limited_to_recent_turns(self, rag, monkeypatch):
+        """Only the last `history_turns` turns are included, oldest dropped."""
+        # Arrange
+        monkeypatch.setenv("HCI_HISTORY_TURNS", "2")
+        get_settings.cache_clear()
+        history = [("q1", "a1"), ("q2", "a2"), ("q3", "a3")]
+        # Act
+        prompt = rag.prompt("why?", [_make_chunk("path-0-A")], history)
+        # Assert
+        assert "Q: q1" not in prompt
+        assert "Earlier in this conversation:\nQ: q2\nA: a2\nQ: q3\nA: a3\n" in prompt
+
+
+def test_answer_streams_steps_then_llm_text(rag):
+    """The stream starts with step lines, then the generator's text built from the grounded prompt."""
+    # Arrange
+    llm = MagicMock(return_value=iter(["Take A."]))
+    # Act
+    pieces = list(rag.answer("why A?", llm, scenario=0))
+    # Assert
+    assert pieces[0] == status("Searching the records")
+    assert text_only(pieces) == "Take A."
+    assert all(p.startswith(STEP_MARKER) for p in pieces[:-1])
+    assert llm.call_args.args[1].endswith("Question: why A?")
