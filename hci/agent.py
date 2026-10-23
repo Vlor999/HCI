@@ -12,7 +12,7 @@ import anthropic
 from anthropic import beta_tool
 
 from hci import corpus, llm
-from hci.rag import RAG, SYSTEM
+from hci.rag import RAG, SYSTEM, status
 
 MODEL = "claude-sonnet-5-5"
 Propose = Callable[[str, int | None], str]  # (fact, scenario) -> tool result shown to the model
@@ -39,7 +39,7 @@ class Agent:
     def __init__(self, rag: RAG, model: str = MODEL):
         self.rag, self.model, self.propose = rag, model, reject
         self.client = anthropic.Anthropic()
-        self.searches = 0
+        self.searches, self.events = 0, []  # events: tool results, shown as steps
 
         @beta_tool
         def query_context(query: str, scenario: int | None = None) -> str:
@@ -51,6 +51,7 @@ class Agent:
             """
             self.searches += 1
             ctx = self.rag.retrieve(query, scenario)
+            self.events.append(f"Found {len(ctx or [])} passages")
             if not ctx:
                 return "Nothing relevant in the records."
             return "\n".join(f"[{self.searches}.{i}] ({c.source}) {c.text}" for i, c in enumerate(ctx, 1))
@@ -79,7 +80,7 @@ class Agent:
         history: Sequence[tuple[str, str]] = (),
         propose: Propose = reject,
     ) -> Iterator[str]:
-        self.searches, self.propose = 0, propose
+        self.searches, self.events, self.propose = 0, [], propose
         messages = [
             m for q, a in history for m in ({"role": "user", "content": q}, {"role": "assistant", "content": a})
         ]
@@ -95,13 +96,30 @@ class Agent:
             output_config={"effort": "medium"},
             betas=["server-side-fallback-2026-07-01"],
             fallbacks="default",
+            stream=True,
         )
-        for message in runner:
-            for block in message.content:
-                if block.type == "text":
-                    yield block.text
-            if message.stop_reason == "refusal":
+        yield status("Thinking")
+        for stream in runner:  # one stream per model turn; tools run between turns
+            yield from (status(e) for e in self.events)
+            self.events.clear()
+            for event in stream:
+                if event.type == "content_block_start" and event.content_block.type == "thinking":
+                    yield status("Reasoning")
+                elif event.type == "text":
+                    yield event.text
+                elif event.type == "content_block_stop" and event.content_block.type == "tool_use":
+                    yield status(describe(event.content_block.name, event.content_block.input))
+            if stream.get_final_message().stop_reason == "refusal":
                 yield "\n[The model declined to answer.]"
+
+
+def describe(tool: str, args: dict) -> str:
+    where = f" (scenario {args['scenario']})" if args.get("scenario") is not None else ""
+    if tool == "query_context":
+        return f'Searching: "{args.get("query", "")}"{where}'
+    if tool == "add_context":
+        return f'Proposing fact: "{args.get("text", "")}"{where}'
+    return "Listing scenarios"
 
 
 def answerer(rag: RAG, provider: str | None = None, model: str | None = None) -> Answer:

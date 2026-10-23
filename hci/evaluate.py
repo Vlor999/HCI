@@ -10,7 +10,7 @@ from hci import corpus
 from hci.agent import answerer
 from hci.device import backend
 from hci.index import default_embedder
-from hci.rag import RAG
+from hci.rag import RAG, STATUS, text_only
 
 CASES_DIR = Path(__file__).resolve().parent.parent / "tests" / "cases"
 
@@ -56,9 +56,10 @@ def run(provider: str | None, model: str | None, answers: bool = True) -> dict:
             if answer and ("answer_contains" in expect or "answer_excludes" in expect):
                 t0, first, pieces = time.perf_counter(), None, []
                 for p in answer(case["question"], case.get("scenario"), case.get("history", [])):
-                    first = first or time.perf_counter()
-                    pieces.append(p)
-                end, text = time.perf_counter(), "".join(pieces).lower()
+                    if not p.startswith(STATUS):
+                        first = first or time.perf_counter()
+                        pieces.append(p)
+                end, text = time.perf_counter(), text_only(pieces).lower()
                 first = first or end
                 first_t.append(first - t0)
                 if end > first and len(pieces) > 1:

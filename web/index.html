@@ -26,6 +26,7 @@
   .a { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; white-space: pre-wrap; }
   .err { color: #c0392b; }
   small { color: var(--muted); }
+  .steps { color: var(--muted); font-size: .85rem; white-space: pre-line; }
   .proposal { border: 1px dashed var(--accent); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
 </style>
 </head>
@@ -63,7 +64,8 @@
     $("ask").disabled = true; $("q").value = "";
     const a = document.createElement("div"); a.className = "a";
     const q = document.createElement("div"); q.className = "q"; q.textContent = question;
-    $("log").append(q, a);
+    const steps = document.createElement("div"); steps.className = "steps";
+    $("log").append(q, steps, a);
     try {
       const r = await fetch("/api/ask", { method: "POST", headers, body: JSON.stringify(
         { question, scenario: scenario(), provider: $("provider").value, history: turns.slice(-3) }) });
@@ -72,7 +74,9 @@
       let raw = "";
       for (let c; !(c = await reader.read()).done;) {
         raw += dec.decode(c.value, { stream: true });
-        a.textContent = raw.split("\x1e")[0]; a.scrollIntoView({ block: "end" });
+        const [body] = raw.split("\x1e"), done = [...body.matchAll(/\x1f([^\n]*)\n/g)].map(m => m[1]);
+        steps.textContent = done.length ? "· " + done.join("\n· ") : "";
+        a.textContent = body.replace(/\x1f[^\n]*(\n|$)/g, ""); a.scrollIntoView({ block: "end" });
       }
       turns.push([question, a.textContent]);
       if (raw.includes("\x1e")) JSON.parse(raw.split("\x1e")[1]).forEach(showProposal);

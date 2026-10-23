@@ -23,6 +23,9 @@ question ─► hybrid retrieval ─► Jev judge (optional) ─► grounded pro
   `list_scenarios` lists the scenarios. Facts are never saved without the operator: the CLI asks `[y/N]`, and the
   phone shows Approve / Reject buttons. Local models keep the fixed pipeline, because they are too small to use
   tools reliably.
+- **Streaming with steps**: answers stream token by token. The current step is shown as it happens: thinking,
+  `Searching: "..."`, `Found 9 passages`, `Proposing fact: "..."`. The CLI prints steps in grey, the phone above the
+  answer. On the wire, a step is a line that starts with `\x1f`.
 - **Travel times** (`t = d / v`) are computed when the data is indexed. Small models got this wrong before
   (`data/corrections/`).
 
@@ -32,7 +35,7 @@ question ─► hybrid retrieval ─► Jev judge (optional) ─► grounded pro
 uv sync
 # API keys go in .env (git-ignored), e.g. ANTHROPIC_API_KEY=... ; load it with: uv run --env-file .env hci ...
 uv run hci -s 0 ask "In which order should I take the paths to finish first?"
-uv run hci -s 0 chat          # follow-up questions, '/fact <text>' records an update
+uv run hci -s 0 chat          # follow-up questions; type / for commands (/fact, /scenario, /clear, /help, /exit)
 uv run hci fact -s 2 "Path Q is closed for maintenance"
 ```
 
@@ -45,6 +48,7 @@ Options: `-s` sets the scenario index in `data/paths.json`. `-p` picks the provi
 | `HCI_MODEL` | `mlx-community/Qwen3-4B-4bit` (MLX), `Qwen/Qwen3-4B` (CUDA), `Qwen/Qwen3-0.6B` (CPU) | local generator. `-m` also picks the Claude model (default `claude-sonnet-5-5`). |
 | `HCI_EMBED_MODEL` | `BAAI/bge-small-en-v1.5` | embedder |
 | `ANTHROPIC_API_KEY` | | for `-p anthropic` |
+| `ANTHROPIC_BASE_URL` | `https://api.anthropic.com` | the SDK honours it. A proxy that sets it (e.g. a CLI wrapper) makes direct keys fail with 401. `--env-file` does not override it, so prefix the command with `ANTHROPIC_BASE_URL=https://api.anthropic.com`. |
 | `TYPESAFE_API_KEY` | | turns on the Jev judge |
 | `HCI_JEV_KEEP`, `HCI_JEV_ANSWERABLE` | `0.5`, `0.3` | Jev thresholds. Tune them on questions the docs can't answer. |
 

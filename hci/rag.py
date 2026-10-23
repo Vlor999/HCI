@@ -14,6 +14,15 @@ Explain its path choices to a human using only the numbered context passages.
 - Cite the passages you rely on like [2]. If the context does not answer the question, say so."""
 
 NOT_FOUND = "I can't answer that from the robot's records."
+STATUS = "\x1f"  # stream lines starting with this are progress steps, not answer text
+
+
+def status(step: str) -> str:
+    return f"{STATUS}{step}\n"
+
+
+def text_only(pieces) -> str:
+    return "".join(p for p in pieces if not p.startswith(STATUS))
 
 
 class RAG:
@@ -71,8 +80,12 @@ class RAG:
     def answer(
         self, question: str, llm: Generate, scenario: int | None = None, history: Sequence[tuple[str, str]] = ()
     ) -> Iterator[str]:
+        yield status("Searching the records")
         ctx = self.retrieve(question, scenario, history)
         if ctx is None:
+            yield status("Jev: the records don't answer this")
             yield NOT_FOUND
             return
+        yield status(f"{len(ctx)} passages in context" + (", filtered by Jev" if self.judge else ""))
+        yield status("Writing the answer")
         yield from llm(SYSTEM, self.prompt(question, ctx, history))

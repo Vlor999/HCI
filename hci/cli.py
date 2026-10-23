@@ -1,6 +1,7 @@
 import argparse
 
 from hci import corpus
+from hci.rag import STATUS
 
 
 def main() -> None:
@@ -46,23 +47,71 @@ def main() -> None:
     answer = answerer(rag, a.provider, a.model)
     if a.cmd == "ask":
         for t in answer(a.question, a.scenario, (), propose):
-            print(t, end="", flush=True)
+            show(t)
         return print()
 
-    for i, s in enumerate(corpus.scenarios()):
-        print(f"  {i}: {s.get('description', '')}")
-    history: list[tuple[str, str]] = []
-    print("Questions, '/fact <text>' to record an update, empty line to quit.")
-    while q := input("\n> ").strip():
-        if q.startswith("/fact "):
-            rag.add_fact(q[6:], a.scenario)
+    chat(answer, rag, a.scenario, propose)
+
+
+def show(t: str) -> str:
+    if t.startswith(STATUS):
+        print(f"\n\033[2m· {t[1:].strip()}\033[0m", flush=True)
+        return ""
+    print(t, end="", flush=True)
+    return t
+
+
+COMMANDS = {
+    "/fact": "record an operator update: /fact <text>",
+    "/scenario": "show or switch the current scenario: /scenario <n>",
+    "/clear": "forget this conversation",
+    "/help": "list commands",
+    "/exit": "quit",
+}
+
+
+def chat(answer, rag, scenario: int | None, propose) -> None:
+    from prompt_toolkit import PromptSession
+    from prompt_toolkit.completion import Completer, FuzzyWordCompleter
+
+    class Slash(Completer):  # fuzzy menu of commands while the line is a bare "/word"
+        fuzzy = FuzzyWordCompleter(list(COMMANDS), meta_dict=COMMANDS, WORD=True)
+
+        def get_completions(self, document, event):
+            text = document.text_before_cursor
+            if text.startswith("/") and " " not in text:
+                yield from self.fuzzy.get_completions(document, event)
+
+    names = [s.get("description", "") for s in corpus.scenarios()]
+    print("\n".join(f"  {i}: {d}" for i, d in enumerate(names)))
+    print("Ask a question, or type / for commands.")
+    session, history = PromptSession(completer=Slash(), complete_while_typing=True), []
+    while True:
+        try:
+            q = session.prompt(f"\n[{'-' if scenario is None else scenario}]> ").strip()
+        except (EOFError, KeyboardInterrupt):
+            return
+        cmd, _, arg = q.partition(" ")
+        if not q:
             continue
-        out = []
-        for t in answer(q, a.scenario, history, propose):
-            print(t, end="", flush=True)
-            out.append(t)
-        history.append((q, "".join(out)))
-        print()
+        if cmd == "/exit":
+            return
+        if cmd == "/clear":
+            history.clear()
+            print("Conversation cleared.")
+        elif cmd == "/fact" and arg.strip():
+            rag.add_fact(arg.strip(), scenario)
+            print("Fact saved.")
+        elif cmd == "/scenario":
+            if arg.strip().isdigit() and int(arg) < len(names):
+                scenario, history = int(arg), []
+            print(f"Scenario: {scenario if scenario is None else f'{scenario} ({names[scenario]})'}")
+        elif cmd.startswith("/"):
+            print("\n".join(f"  {c:<10} {d}" for c, d in COMMANDS.items()))
+        else:
+            out = [show(t) for t in answer(q, scenario, history, propose)]
+            history.append((q, "".join(out).strip()))
+            print()
 
 
 if __name__ == "__main__":

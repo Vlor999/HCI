@@ -4,7 +4,7 @@ import numpy as np
 
 from hci import corpus, jev
 from hci.index import Index, tokenize
-from hci.rag import NOT_FOUND, RAG
+from hci.rag import NOT_FOUND, RAG, text_only
 
 
 def fake_embed(texts):
@@ -37,7 +37,7 @@ def test_rag(tmp_path, monkeypatch):
 
     seen = {}
     gen = lambda system, user: iter([seen.setdefault("user", user)])
-    assert "Question: why C?" in "".join(rag.answer("why C?", gen, scenario=0))
+    assert "Question: why C?" in text_only(rag.answer("why C?", gen, scenario=0))
     assert "[1] (path)" in seen["user"]
 
     # Jev: request shape + gating
@@ -48,7 +48,7 @@ def test_rag(tmp_path, monkeypatch):
 
     rag.judge = True
     monkeypatch.setattr(jev, "judge", lambda q, c: (set(), False))
-    assert "".join(rag.answer("weather on mars?", gen)) == NOT_FOUND
+    assert text_only(rag.answer("weather on mars?", gen)) == NOT_FOUND
 
 
 def test_agent_tools(tmp_path, monkeypatch):
