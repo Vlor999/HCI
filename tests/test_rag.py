@@ -49,3 +49,23 @@ def test_rag(tmp_path, monkeypatch):
     rag.judge = True
     monkeypatch.setattr(jev, "judge", lambda q, c: (set(), False))
     assert "".join(rag.answer("weather on mars?", gen)) == NOT_FOUND
+
+
+def test_agent_tools(tmp_path, monkeypatch):
+    from hci.agent import Agent
+
+    monkeypatch.setattr(corpus, "FACTS", tmp_path / "facts.json")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test")
+    agent = Agent(RAG(embed=fake_embed, judge=False))
+    tools = {t.name: t for t in agent.tools}
+    assert set(tools) == {"query_context", "add_context", "list_scenarios"}
+
+    out = tools["query_context"].call({"query": "fastest path", "scenario": 0})
+    assert out.startswith("[1.1] (path)") and "travel time" in out
+
+    # add_context only proposes; the operator callback decides
+    seen = []
+    agent.propose = lambda text, scenario: seen.append((text, scenario)) or "Proposed."
+    assert tools["add_context"].call({"text": "Path C is closed.", "scenario": 0}) == "Proposed."
+    assert seen == [("Path C is closed.", 0)] and not corpus.FACTS.exists()
+    assert "Winter scenario" in tools["list_scenarios"].call({})

@@ -15,6 +15,6 @@ jobs:
       # no LLM needed; the JSON cases use the real embedder on CPU torch
       - run: >
           uv run --no-project -p 3.12 --index https://download.pytorch.org/whl/cpu --index-strategy unsafe-best-match
-          --with torch --with sentence-transformers --with httpx --with jsonschema --with pytest pytest -q
+          --with torch --with sentence-transformers --with httpx --with anthropic --with jsonschema --with pytest pytest -q
         env:
           PYTHONPATH: .

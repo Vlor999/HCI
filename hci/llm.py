@@ -1,4 +1,4 @@
-"""Answer generators. Each one is `(system, user) -> iterator of text chunks`."""
+"""Local answer generators. Each one is `(system, user) -> iterator of text chunks`."""
 
 import os
 from collections.abc import Callable, Iterator
@@ -9,10 +9,9 @@ Generate = Callable[[str, str], Iterator[str]]
 
 MAX_TOKENS = 1024
 DEFAULTS = {
-    "mlx": "mlx-community/Qwen3-4B-4bit",
+    "mlx": "mlx-community/gemma-4-e4b-it-4bit",
     "cuda": "Qwen/Qwen3-4B",
     "cpu": "Qwen/Qwen3-0.6B",
-    "anthropic": "claude-sonnet-5-5",
 }
 
 
@@ -56,32 +55,8 @@ def hf(name: str) -> Generate:
     return gen
 
 
-def anthropic(name: str) -> Generate:
-    import anthropic
-
-    client = anthropic.Anthropic()
-
-    def gen(system: str, user: str) -> Iterator[str]:
-        with client.beta.messages.stream(
-            model=name,
-            max_tokens=16000,
-            system=system,
-            messages=[{"role": "user", "content": user}],
-            output_config={"effort": "medium"},
-            betas=["server-side-fallback-2026-07-01"],
-            fallbacks="default",  # a declined request is retried server-side on a fallback model
-        ) as stream:
-            yield from stream.text_stream
-            if stream.get_final_message().stop_reason == "refusal":
-                yield "\n[The model declined to answer.]"
-
-    return gen
-
-
 def load(provider: str | None = None, model: str | None = None) -> Generate:
-    """provider: mlx | cuda | cpu | anthropic. Defaults to the fastest local backend."""
+    """provider: mlx | cuda | cpu. Defaults to the fastest local backend. Claude goes through hci.agent."""
     provider = provider or os.environ.get("HCI_PROVIDER") or backend()
     name = model or os.environ.get("HCI_MODEL") or DEFAULTS[provider]
-    if provider == "anthropic":
-        return anthropic(name)
     return mlx(name) if provider == "mlx" else hf(name)

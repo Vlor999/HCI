@@ -33,12 +33,19 @@ def main() -> None:
     if a.cmd == "fact":
         return corpus.add_fact(a.text, a.scenario)
 
-    from hci import llm
+    from hci.agent import answerer
     from hci.rag import RAG
 
-    rag, gen = RAG(), llm.load(a.provider, a.model)
+    def propose(text: str, scenario: int | None) -> str:
+        if input(f"\nSave fact for scenario {scenario}: {text!r}? [y/N] ").strip().lower() != "y":
+            return "The operator rejected this fact. Do not propose it again."
+        rag.add_fact(text, scenario)
+        return "Saved."
+
+    rag = RAG()
+    answer = answerer(rag, a.provider, a.model)
     if a.cmd == "ask":
-        for t in rag.answer(a.question, gen, a.scenario):
+        for t in answer(a.question, a.scenario, (), propose):
             print(t, end="", flush=True)
         return print()
 
@@ -51,7 +58,7 @@ def main() -> None:
             rag.add_fact(q[6:], a.scenario)
             continue
         out = []
-        for t in rag.answer(q, gen, a.scenario, history):
+        for t in answer(q, a.scenario, history, propose):
             print(t, end="", flush=True)
             out.append(t)
         history.append((q, "".join(out)))

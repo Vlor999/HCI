@@ -1,5 +1,6 @@
 """HTTP API + mobile web app. The phone talks to this server; generation runs here (on-prem) or on Anthropic."""
 
+import json
 import os
 import secrets
 import threading
@@ -10,7 +11,8 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
-from hci import corpus, llm
+from hci import corpus
+from hci.agent import Answer, answerer
 from hci.device import backend
 from hci.rag import RAG
 
@@ -19,7 +21,7 @@ PROVIDERS = [backend(), "anthropic"]
 WEB = Path(__file__).resolve().parent.parent / "web" / "index.html"
 
 app = FastAPI(title="HCI robot explainer")
-models: dict[str, llm.Generate] = {}
+answerers: dict[str, Answer] = {}
 lock = threading.Lock()  # ponytail: one generation at a time; local models aren't thread-safe, fine for one robot
 
 
@@ -60,11 +62,19 @@ def ask(req: Ask) -> StreamingResponse:
     if req.provider not in PROVIDERS:
         raise HTTPException(400, f"provider must be one of {PROVIDERS}")
 
+    proposals: list[dict] = []
+
+    def propose(text: str, scenario: int | None) -> str:
+        proposals.append({"text": text, "scenario": scenario})
+        return "Proposed: the operator will approve or reject it on the phone."
+
     def stream():
         with lock:
-            if req.provider not in models:
-                models[req.provider] = llm.load(req.provider)
-            yield from get_rag().answer(req.question, models[req.provider], req.scenario, req.history)
+            if req.provider not in answerers:
+                answerers[req.provider] = answerer(get_rag(), req.provider)
+            yield from answerers[req.provider](req.question, req.scenario, req.history, propose)
+        if proposals:  # facts the agent wants to save; the page shows approve buttons
+            yield "\x1e" + json.dumps(proposals)
 
     return StreamingResponse(stream(), media_type="text/plain; charset=utf-8")
 

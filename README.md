@@ -18,7 +18,11 @@ question ─► hybrid retrieval ─► Jev judge (optional) ─► grounded pro
   passage and checks whether the question can be answered at all. Below the threshold, the LLM is skipped and the
   app says it doesn't know.
 - **Generation**: picks the fastest backend it finds. That's MLX on Apple Silicon, then CUDA, then CPU (`transformers`).
-  Anthropic (`claude-sonnet-5-5`, effort `medium`) is also available.
+- **Agent mode** (`-p anthropic`, `claude-sonnet-5-5`, effort `medium`): Claude drives the memory itself through
+  three tools. `query_context` searches the records, as many times as needed. `add_context` proposes a new fact.
+  `list_scenarios` lists the scenarios. Facts are never saved without the operator: the CLI asks `[y/N]`, and the
+  phone shows Approve / Reject buttons. Local models keep the fixed pipeline, because they are too small to use
+  tools reliably.
 - **Travel times** (`t = d / v`) are computed when the data is indexed. Small models got this wrong before
   (`data/corrections/`).
 
@@ -36,14 +40,13 @@ Options: `-s` sets the scenario index in `data/paths.json`. `-p` picks the provi
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `HCI_PROVIDER` | fastest local | `mlx`, `cuda`, `cpu`, `anthropic` |
-| `HCI_MODEL` | `mlx-community/Qwen3-4B-4bit` (MLX), `Qwen/Qwen3-4B` (CUDA), `Qwen/Qwen3-0.6B` (CPU), `claude-sonnet-5-5` | generator |
+| `HCI_PROVIDER` | fastest local | `mlx`, `cuda`, `cpu`, `anthropic` (agent mode) |
+| `HCI_MODEL` | `mlx-community/gemma-4-e4b-it-4bit` (MLX), `Qwen/Qwen3-4B` (CUDA), `Qwen/Qwen3-0.6B` (CPU) | local generator. `-m` also picks the Claude model (default `claude-sonnet-5-5`). |
 | `HCI_EMBED_MODEL` | `BAAI/bge-small-en-v1.5` | embedder |
 | `ANTHROPIC_API_KEY` | | for `-p anthropic` |
 | `TYPESAFE_API_KEY` | | turns on the Jev judge |
 | `HCI_JEV_KEEP`, `HCI_JEV_ANSWERABLE` | `0.5`, `0.3` | Jev thresholds. Tune them on questions the docs can't answer. |
 
-On an M4 Pro, a question takes about 7 s end to end with MLX, model load included.
 
 ## Phone
 
@@ -85,17 +88,16 @@ validates every file against it. A case gives a question, an optional scenario, 
 chunk ids that must or must not be in the context, chunks that must come first, and words the answer must contain
 or must not contain. `xfail` marks a known weakness, and the case still runs.
 
-`hci eval` on an M4 Pro (MLX, Qwen3-4B 4-bit, 45 cases):
+`hci eval` on an M4 Pro (MLX, 45 cases):
 
-| Metric | Value |
-| --- | --- |
-| Retrieval pass rate | 84 % (7 paraphrase misses marked `xfail`) |
-| Recall of expected chunks | 74 % |
-| Answer pass rate | 90 % |
-| Retrieval latency (p50) | 7 ms |
-| First token (p50) | 1.25 s |
-| Generation | 85 tokens/s |
-| Model load | 0.6 s LLM + 2.4 s embedder |
+| Metric | Gemma 4 E4B (default) | Qwen3-4B |
+| --- | --- | --- |
+| Retrieval pass rate | 84 % (7 paraphrase misses marked `xfail`) | same |
+| Recall of expected chunks | 74 % | same |
+| Answer pass rate | 81 % | 90 % |
+| Retrieval latency (p50) | 6 ms | 7 ms |
+| First token (p50) | 0.8 s | 1.25 s |
+| Generation | 67 tokens/s | 85 tokens/s |
 
 The report and slides are in `doc/robot-explain-yourself/`. The first version (Ollama, no retrieval) is in the git
 history.
