@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "HCI test case file",
-  "description": "A list of RAG test cases. Retrieval checks run in pytest; answer checks run in `hci eval` (needs an LLM).",
+  "description": "A list of RAG test cases. Retrieval checks run in pytest; answer checks run in `hci eval` (needs an LLM). Chunk ids are explicit file references, relative to the repo root: `data/paths.json#<scenario>/<location>` (path step), `data/documents/<file>#<n>` (n-th chunk of a document, from 1), `data/corrections/<file>.md` (one chunk per correction), `data/explanations/<file>.json#<index>` (example explanation, from 0), and `fact-<n>` for the case's own facts (the facts file is runtime state outside git). pytest checks that every id names an existing file and a chunk produced by `corpus.load()`.",
   "type": "array",
   "items": {
     "type": "object",
