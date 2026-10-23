@@ -60,7 +60,10 @@
   <button id="fact" class="ghost">Save as fact</button>
 </div>
 <p><small id="status"></small></p>
-<button id="add-doc" class="ghost">Add document</button>
+<div class="row">
+  <button id="new-conv" class="ghost">New conversation</button>
+  <button id="add-doc" class="ghost">Add document</button>
+</div>
 <input type="file" id="doc-file" hidden>
 <p><small id="doc-status" role="status"></small></p>
 <ul id="docs" class="docs"></ul>
@@ -73,6 +76,8 @@
   }
   let token = ""; try { token = localStorage.getItem("token") || ""; } catch {}
   const $ = id => document.getElementById(id), turns = [];
+  const newConversationId = () => crypto.getRandomValues(new Uint32Array(3)).reduce((s, n) => s + n.toString(16).padStart(8, "0"), "");
+  let conversationId = newConversationId();  // per page session; groups this conversation's costs on the dashboard
   const headers = { "Authorization": "Bearer " + token, "Content-Type": "application/json" };
   const scenario = () => $("scenario").value === "" ? null : Number($("scenario").value);
 
@@ -93,7 +98,7 @@
     $("log").append(q, steps, a);
     try {
       const r = await fetch("/api/ask", { method: "POST", headers, body: JSON.stringify(
-        { question, scenario: scenario(), provider: $("provider").value, history: turns.slice(-3) }) });
+        { question, scenario: scenario(), provider: $("provider").value, history: turns.slice(-3), conversation_id: conversationId }) });
       if (!r.ok) throw new Error(await r.text());
       const reader = r.body.getReader(), dec = new TextDecoder();
       let raw = "", text = "";
@@ -202,6 +207,9 @@
     xhr.send(form);
   }
 
+  $("new-conv").onclick = () => {
+    conversationId = newConversationId(); turns.length = 0; $("log").replaceChildren(); $("status").textContent = "New conversation.";
+  };
   $("add-doc").onclick = () => $("doc-file").click();
   $("doc-file").onchange = () => { const file = $("doc-file").files[0]; if (file) uploadDocument(file); $("doc-file").value = ""; };
 

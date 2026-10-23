@@ -19,7 +19,7 @@ def _make_generator(generate_error: Exception) -> HfGenerator:
         patch("hci.llm.torch_device", return_value="cpu"),
     ):
         load_model.return_value.to.return_value.generate.side_effect = generate_error
-        return HfGenerator("fake/model")
+        return HfGenerator("fake/model", "cpu")
 
 
 def test_generate_error_is_reraised_not_hung():

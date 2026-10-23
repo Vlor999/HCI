@@ -4,6 +4,8 @@ from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
+from hci.constants import CONVERSATION_ID_PATTERN
+
 
 class Provider(StrEnum):
     """Where generation runs."""
@@ -22,6 +24,11 @@ class AskRequest(BaseModel):
     provider: Provider | None = Field(default=None, description="Where generation runs; None picks the local backend.")
     history: list[tuple[str, str]] = Field(
         default_factory=list, max_length=10, description="Previous (question, answer) turns, oldest first."
+    )
+    conversation_id: str | None = Field(
+        default=None,
+        pattern=CONVERSATION_ID_PATTERN,
+        description="Conversation the question belongs to (letters, digits, `-`, `_`), for per-conversation metrics.",
     )
 
 

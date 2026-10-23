@@ -12,6 +12,7 @@ from transformers import (
     TextIteratorStreamer,
 )
 
+from hci import metrics
 from hci.config import get_settings
 from hci.constants import LOCAL_MODELS
 from hci.device import backend, torch_device
@@ -44,7 +45,7 @@ class MlxGenerator:
         from mlx_lm import load, stream_generate
 
         loaded = load(name)  # (model, tokenizer), plus a config only when return_config=True
-        self.model, self.tokenizer = loaded[0], loaded[1]
+        self.name, self.model, self.tokenizer = name, loaded[0], loaded[1]
         self.stream_generate = stream_generate
 
     def __call__(self, system: str, user: str) -> Iterator[str]:
@@ -55,25 +56,34 @@ class MlxGenerator:
             user: The user turn.
 
         Yields:
-            Text pieces as they are generated.
+            Text pieces as they are generated; the token counts of the last response go to the request metrics.
         """
+        metrics.update(provider="mlx", model=self.name)
         # enable_thinking only matters for Qwen3 templates, other templates ignore it
         prompt = self.tokenizer.apply_chat_template(
             messages(system, user), add_generation_prompt=True, enable_thinking=False
         )
         max_tokens = get_settings().local_max_tokens
-        for r in self.stream_generate(self.model, self.tokenizer, prompt, max_tokens=max_tokens):
-            yield r.text
+        response = None
+        for response in self.stream_generate(self.model, self.tokenizer, prompt, max_tokens=max_tokens):
+            yield response.text
+        if response is not None:
+            metrics.update(
+                input_tokens=response.prompt_tokens,
+                output_tokens=response.generation_tokens,
+                stop_reason=response.finish_reason,
+            )
 
 
 class HfGenerator:
     """Streams answers from a transformers model (CUDA or CPU)."""
 
-    def __init__(self, name: str) -> None:
+    def __init__(self, name: str, provider: str) -> None:
         """Load the tokenizer and model on the torch device.
 
         Args:
             name: Hugging Face repo or local path of a causal LM.
+            provider: `cuda` or `cpu`, as reported in the metrics.
 
         Raises:
             ValueError: The repo has no tokenizer.
@@ -81,7 +91,7 @@ class HfGenerator:
         tokenizer = AutoTokenizer.from_pretrained(name)
         if not isinstance(tokenizer, PreTrainedTokenizerBase):
             raise ValueError(f"No tokenizer found for {name}")
-        self.tokenizer = tokenizer
+        self.name, self.provider, self.tokenizer = name, provider, tokenizer
         self.device = torch_device()
         model = AutoModelForCausalLM.from_pretrained(name, dtype="auto")
         # transformers wraps `PreTrainedModel.to` with functools.wraps, so ty binds the device to `self`
@@ -110,17 +120,24 @@ class HfGenerator:
             user: The user turn.
 
         Yields:
-            Text pieces as they are generated.
+            Text pieces as they are generated; token counts (from the tokenizer) go to the request metrics.
 
         Raises:
             Exception: Whatever `generate` raised in the background thread.
         """
+        metrics.update(provider=self.provider, model=self.name)
         streamer = TextIteratorStreamer(self.tokenizer, skip_prompt=True, skip_special_tokens=True)
         errors: list[Exception] = []
-        Thread(target=self._generate, args=(self._encode(system, user), streamer, errors)).start()
-        yield from streamer
+        encoding = self._encode(system, user)
+        Thread(target=self._generate, args=(encoding, streamer, errors)).start()
+        pieces = []
+        for piece in streamer:
+            pieces.append(piece)
+            yield piece
         if errors:
             raise errors[0]
+        output_tokens = len(self.tokenizer.encode("".join(pieces), add_special_tokens=False))
+        metrics.update(input_tokens=int(encoding["input_ids"].shape[-1]), output_tokens=output_tokens)
 
 
 def load(provider: str | None = None, model: str | None = None) -> Generate:
@@ -137,4 +154,4 @@ def load(provider: str | None = None, model: str | None = None) -> Generate:
     provider = provider or settings.provider or backend()
     name = model or settings.model or LOCAL_MODELS[provider]
     logger.info("Model: {} (local, {})", name, provider)
-    return MlxGenerator(name) if provider == "mlx" else HfGenerator(name)
+    return MlxGenerator(name) if provider == "mlx" else HfGenerator(name, provider)

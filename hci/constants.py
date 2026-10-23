@@ -132,7 +132,9 @@ CORRECTIONS_DIR = DATA_DIR / "corrections"
 EXPLANATIONS_FILE = DATA_DIR / "explanations" / "sample_explanations.json"
 FACTS_FILE = DATA_DIR / "facts.json"
 WEB_PAGE = ROOT_DIR / "web" / "index.html"
-VENDOR_DIR = ROOT_DIR / "web" / "vendor"  # pinned marked + DOMPurify, served locally (works offline)
+DASHBOARD_PAGE = ROOT_DIR / "web" / "dashboard.html"
+VENDOR_DIR = ROOT_DIR / "web" / "vendor"  # pinned marked, DOMPurify and Chart.js, served locally (works offline)
+METRICS_FILE = ROOT_DIR / "logs" / "metrics.jsonl"
 CASES_DIR = ROOT_DIR / "tests" / "cases"
 
 
@@ -155,6 +157,59 @@ COMMANDS = {
     "/help": "list commands",
     "/exit": "quit",
 }
+
+# --- Metrics -----------------------------------------------------------------
+
+
+class MetricSource(StrEnum):
+    """What produced an answer's metric events."""
+
+    CLI = "cli"
+    SERVER = "server"
+    EVAL = "eval"
+
+
+# --- Prices (cost estimates from logged usage) --------------------------------
+
+PRICES_DATE = "2026-10"  # when MODEL_PRICES was copied from Anthropic's published pricing table
+# USD per million tokens. A missing component (e.g. cache_read) means it is not listed: a cost needing it is unknown.
+MODEL_PRICES: dict[str, dict[str, float]] = {
+    "claude-sonnet-5-5": {"input": 2.00, "output": 10.00, "cache_read": 0.20},
+    "claude-opus-5-5": {"input": 4.00, "output": 20.00, "cache_read": 0.20},
+    "claude-haiku-5-5": {"input": 0.10, "output": 0.50},
+    "claude-opus-4-8": {"input": 5.00, "output": 25.00},
+}
+CACHE_WRITE_MULTIPLIER = 1.25  # 5-minute cache write, times the input price
+TOKENS_PER_PRICE_UNIT = 1_000_000
+CONVERSATION_ID_PATTERN = r"^[A-Za-z0-9_-]{1,64}$"
+
+METRICS_DEFAULT_LIMIT = 20000  # events returned by `/api/metrics` when the page gives no limit
+METRICS_MAX_LIMIT = 100000
+SERVER_START_WAIT_S = 10  # `hci dashboard --open` waits this long for the server to listen before opening the browser
+
+# --- Dashboard service (always-on `hci-dashboard`) ---------------------------
+
+DASHBOARD_SCRIPT = "hci-dashboard"  # light entry point next to `hci` in the venv: no model, embedder or RAG
+DASHBOARD_LABEL = "io.github.vlor999.hci-dashboard"  # launchd label and plist name
+DASHBOARD_LOG = ROOT_DIR / "logs" / "dashboard.log"
+LAUNCH_AGENTS_DIR = Path.home() / "Library" / "LaunchAgents"
+SYSTEMD_UNIT_NAME = "hci-dashboard.service"
+SYSTEMD_UNIT = """[Unit]
+Description=HCI metrics dashboard
+
+[Service]
+ExecStart={program}
+WorkingDirectory={root}
+Restart=always
+StandardOutput=append:{log}
+StandardError=append:{log}
+
+[Install]
+WantedBy=default.target
+"""
+SYSTEMD_HELP = """Save this as ~/.config/systemd/user/{unit}, then:
+  systemctl --user daemon-reload && systemctl --user enable --now {unit}
+Status: systemctl --user status {unit}. Remove: systemctl --user disable --now {unit}, then delete the file."""
 
 # --- agent/server ------------------------------------------------------------
 

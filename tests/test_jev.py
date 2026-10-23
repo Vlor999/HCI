@@ -1,5 +1,7 @@
-"""Tests for hci.jev: request shape, thresholds and the fallback when Jev fails."""
+"""Tests for hci.jev: request shape, thresholds, the fallback when Jev fails and its metric event."""
 
+import json
+from datetime import timedelta
 from unittest.mock import MagicMock, patch
 
 import httpx
@@ -20,9 +22,13 @@ def _make_answers(*scores: float, answerable: float = 0.9) -> dict:
 
 
 def _make_response(body: object) -> MagicMock:
-    response = MagicMock()
+    response = MagicMock(elapsed=timedelta(milliseconds=150))
     response.json.return_value = body
     return response
+
+
+def _events() -> list[dict]:
+    return [json.loads(line) for line in get_settings().metrics_file.read_text().splitlines()]
 
 
 @pytest.fixture
@@ -80,11 +86,12 @@ class TestJudge:
         # Arrange
         chunks = _make_chunks(2)
         # Act
-        with patch("hci.jev.httpx.post", return_value=_make_response({"answers": _make_answers(0.9, 0.1)})) as post:
+        with patch("hci.jev.client") as client:
+            client.return_value.post.return_value = _make_response({"answers": _make_answers(0.9, 0.1)})
             result = jev.judge("q", chunks)
         # Assert
         assert result == ({"c0"}, True)
-        post.assert_called_once_with(
+        client.return_value.post.assert_called_once_with(
             JEV_URL,
             json=jev.request("q", chunks),
             headers={"Authorization": f"Bearer {jev_key}"},
@@ -109,7 +116,7 @@ class TestJudge:
     def test_http_error_keeps_every_passage(self, jev_key, post):
         """A Jev outage keeps every passage and lets the question through."""
         # Act
-        with patch("hci.jev.httpx.post", post):
+        with patch("hci.jev.client", return_value=MagicMock(post=post)):
             result = jev.judge("q", _make_chunks(2))
         # Assert
         assert result == ({"c0", "c1"}, True)
@@ -118,7 +125,8 @@ class TestJudge:
     def test_malformed_response_keeps_every_passage(self, jev_key, body):
         """A response missing answers or scores is treated like an outage."""
         # Act
-        with patch("hci.jev.httpx.post", return_value=_make_response(body)):
+        with patch("hci.jev.client") as client:
+            client.return_value.post.return_value = _make_response(body)
             result = jev.judge("q", _make_chunks(2))
         # Assert
         assert result == ({"c0", "c1"}, True)
@@ -129,7 +137,68 @@ class TestJudge:
         response = MagicMock()
         response.json.side_effect = ValueError("no json")
         # Act
-        with patch("hci.jev.httpx.post", return_value=response):
+        with patch("hci.jev.client") as client:
+            client.return_value.post.return_value = response
             result = jev.judge("q", _make_chunks(1))
         # Assert
         assert result == ({"c0"}, True)
+
+
+class TestJevEvent:
+    def test_success_logs_latency_usage_and_kept_passages(self, jev_key):
+        """A judged call writes its network time, answerability, usage and kept / total passages."""
+        # Arrange
+        body = {
+            "model": "jev-1",
+            "answers": _make_answers(0.9, 0.1),
+            "usage": {"input_tokens": 336, "output_tokens": 39},
+        }
+        # Act
+        with patch("hci.jev.client") as client:
+            client.return_value.post.return_value = _make_response(body)
+            jev.judge("q", _make_chunks(2))
+        # Assert
+        (event,) = _events()
+        assert event["kind"] == "jev" and event["latency_ms"] >= 0
+        assert (event["network_ms"], event["answerable_p"], event["model"]) == (150.0, 0.9, "jev-1")
+        assert (event["input_tokens"], event["output_tokens"]) == (336, 39)
+        assert (event["questions"], event["passages_kept"], event["passages_total"]) == (3, 1, 2)
+        assert event["fallback"] is False
+        assert (event["cost_usd"], event["price_unknown"]) == (None, True)  # Jev prices not set
+
+    def test_outage_logs_fallback_and_error_class(self, jev_key):
+        """A Jev outage is logged as a fallback with the error class; every passage counts as kept."""
+        # Act
+        with patch("hci.jev.client") as client:
+            client.return_value.post.side_effect = httpx.ConnectError("down")
+            jev.judge("q", _make_chunks(2))
+        # Assert
+        (event,) = _events()
+        assert (event["fallback"], event["error"], event["passages_kept"]) == (True, "ConnectError", 2)
+        assert event["answerable_p"] is None
+
+    def test_event_holds_no_text_or_key(self, jev_key):
+        """Neither the question, the passages nor the TypeSafe key reach the metrics file."""
+        # Act
+        with patch("hci.jev.client") as client:
+            client.return_value.post.return_value = _make_response({"answers": _make_answers(0.9)})
+            jev.judge("secret question", _make_chunks(1))
+        # Assert
+        text = get_settings().metrics_file.read_text()
+        assert not any(s in text for s in ("secret question", "passage 0", jev_key))
+
+
+def test_jev_cost_uses_price_settings(jev_key, monkeypatch):
+    """With Jev prices set, the event carries the cost of its usage."""
+    # Arrange
+    monkeypatch.setenv("HCI_JEV_PRICE_INPUT_PER_MTOK", "1.0")
+    monkeypatch.setenv("HCI_JEV_PRICE_OUTPUT_PER_MTOK", "2.0")
+    get_settings.cache_clear()
+    body = {"answers": _make_answers(0.9), "usage": {"input_tokens": 1_000_000, "output_tokens": 500_000}}
+    # Act
+    with patch("hci.jev.client") as client:
+        client.return_value.post.return_value = _make_response(body)
+        jev.judge("q", _make_chunks(1))
+    # Assert
+    (event,) = _events()
+    assert (event["cost_usd"], event["price_unknown"]) == (2.0, False)

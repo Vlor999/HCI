@@ -156,7 +156,7 @@ def test_fact_approval_does_not_wait_for_local_stream(client, monkeypatch, fake_
     stream.join(5)
 
 
-@pytest.mark.parametrize("path", ["/vendor/marked.min.js", "/vendor/purify.min.js"])
+@pytest.mark.parametrize("path", ["/vendor/marked.min.js", "/vendor/purify.min.js", "/vendor/chart.umd.min.js"])
 def test_markdown_libraries_are_served_locally(client: TestClient, path: str):
     """The page renders Markdown offline: marked and DOMPurify come from the server, not a CDN."""
     # Act
@@ -165,6 +165,77 @@ def test_markdown_libraries_are_served_locally(client: TestClient, path: str):
     # Assert
     assert response.status_code == 200
     assert "javascript" in response.headers["content-type"]
+
+
+def test_answer_writes_a_server_request_event(client):
+    """Each `/api/ask` answer appends a `request` event with source `server` and no question text."""
+    # Act
+    client.post("/api/ask", headers=AUTH, json={"question": "why path A?", "scenario": 1})
+    # Assert
+    (event,) = [json.loads(line) for line in get_settings().metrics_file.read_text().splitlines()]
+    assert (event["kind"], event["source"], event["scenario"], event["question_chars"]) == ("request", "server", 1, 11)
+    assert "why path A" not in json.dumps(event)
+
+
+def test_conversation_id_reaches_the_events(client):
+    """The page's conversation id is logged on the answer's request event."""
+    # Act
+    client.post("/api/ask", headers=AUTH, json={"question": "q", "conversation_id": "a1b2-c3_d4"})
+    # Assert
+    (event,) = [json.loads(line) for line in get_settings().metrics_file.read_text().splitlines()]
+    assert event["conversation_id"] == "a1b2-c3_d4"
+
+
+@pytest.mark.parametrize("conversation_id", ["", "has space", "x" * 65, "../etc"])
+def test_malformed_conversation_id_is_422(client, conversation_id):
+    """A conversation id outside letters, digits, `-` and `_` (1 to 64) is rejected."""
+    # Act / Assert
+    assert (
+        client.post("/api/ask", headers=AUTH, json={"question": "q", "conversation_id": conversation_id}).status_code
+        == 422
+    )
+
+
+def test_ttft_includes_the_local_lock_wait(client):
+    """A local request waiting for another one has the wait in `queue_ms` and in its TTFT."""
+    # Arrange
+    server.local_lock.acquire()
+    threading.Timer(0.3, server.local_lock.release).start()
+    # Act
+    client.post("/api/ask", headers=AUTH, json={"question": "q"})
+    # Assert
+    (event,) = [json.loads(line) for line in get_settings().metrics_file.read_text().splitlines()]
+    assert event["queue_ms"] >= 250
+    assert event["ttft_ms"] >= event["queue_ms"]
+
+
+class TestMetrics:
+    def test_metrics_needs_token(self, client):
+        """`/api/metrics` on `hci serve` is behind the same token as the API."""
+        # Act / Assert
+        assert client.get("/api/metrics").status_code == 401
+
+    def test_metrics_filters_by_since_and_limit(self, client):
+        """`since` keeps later events, `limit` the last N."""
+        # Arrange
+        for question in ("a", "b", "c"):
+            client.post("/api/ask", headers=AUTH, json={"question": question})
+        events = client.get("/api/metrics", headers=AUTH).json()
+        # Act
+        later = client.get("/api/metrics", headers=AUTH, params={"since": events[0]["ts"]}).json()
+        last = client.get("/api/metrics", headers=AUTH, params={"limit": 1}).json()
+        # Assert
+        assert len(events) == 3
+        assert later == [e for e in events if e["ts"] > events[0]["ts"]]
+        assert last == events[-1:]
+
+    def test_dashboard_page_is_served(self, client):
+        """`/dashboard` serves the page; its data needs the token, the page itself does not."""
+        # Act
+        response = client.get("/dashboard")
+        # Assert
+        assert response.status_code == 200
+        assert "/vendor/chart.umd.min.js" in response.text
 
 
 class TestDocuments:

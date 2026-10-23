@@ -9,10 +9,10 @@ from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import CompleteEvent, Completer, Completion, FuzzyWordCompleter
 from prompt_toolkit.document import Document
 
-from hci import corpus, evaluate, server
+from hci import corpus, dashboard, evaluate, metrics, server
 from hci.agent import answerer
 from hci.config import get_settings
-from hci.constants import COMMANDS, STEP_MARKER
+from hci.constants import COMMANDS, STEP_MARKER, MetricSource
 from hci.rag import ExplanationPipeline
 from hci.types import Answer
 
@@ -65,6 +65,7 @@ class ChatSession:
         scenario: Current scenario index, None for no scenario.
         history: Previous (question, answer) turns, oldest first.
         names: Scenario descriptions, by index.
+        conversation_id: Ties the session's answers together in the metrics.
     """
 
     rag: ExplanationPipeline
@@ -72,6 +73,7 @@ class ChatSession:
     scenario: int | None = None
     history: list[tuple[str, str]] = field(default_factory=list)
     names: list[str] = field(default_factory=lambda: [s.get("description", "") for s in corpus.scenarios()])
+    conversation_id: str = field(default_factory=metrics.new_id)
 
     def propose(self, text: str, scenario: int | None) -> str:
         """Ask the operator to approve a fact the model proposes; save it on `y`.
@@ -89,12 +91,14 @@ class ChatSession:
         return "Saved."
 
     def ask(self, question: str) -> None:
-        """Stream the answer to `question` and record the turn.
+        """Stream the answer to `question`, record the turn and its metrics.
 
         Args:
             question: The user's question.
         """
-        pieces = [show(p) for p in self.answer(question, self.scenario, self.history, self.propose)]
+        stream = self.answer(question, self.scenario, self.history, self.propose)
+        tracked = metrics.track(stream, MetricSource.CLI, question, self.scenario, self.conversation_id)
+        pieces = [show(p) for p in tracked]
         self.history.append((question, "".join(pieces).strip()))
         print()
 
@@ -208,12 +212,23 @@ def _serve(args: argparse.Namespace) -> None:
     server.run(args.host, args.port)
 
 
+def _dashboard(args: argparse.Namespace) -> None:
+    """`hci dashboard`: serve the metrics dashboard, or manage its always-on service (exits non-zero on failure)."""
+    if args.install or args.uninstall or args.status:
+        action = dashboard.install if args.install else dashboard.uninstall if args.uninstall else dashboard.status
+        if code := action():
+            raise SystemExit(code)
+    else:
+        dashboard.run(args.host, args.port, open_browser=args.open)
+
+
 HANDLERS: dict[str, Callable[[argparse.Namespace], None]] = {
     "ask": _ask,
     "chat": _chat,
     "fact": _fact,
     "eval": _eval,
     "serve": _serve,
+    "dashboard": _dashboard,
 }
 
 
@@ -237,7 +252,19 @@ def build_parser() -> argparse.ArgumentParser:
     serve = sub.add_parser("serve", help="HTTP API + phone web app")
     serve.add_argument("--host", default=get_settings().host)
     serve.add_argument("--port", type=int, default=get_settings().port)
+    _add_dashboard_parser(sub.add_parser("dashboard", help="metrics dashboard (light server, no model loaded)"))
     return parser
+
+
+def _add_dashboard_parser(parser: argparse.ArgumentParser) -> None:
+    """Options of `hci dashboard`: where to serve, open the browser, or manage the always-on service."""
+    parser.add_argument("--host", default=get_settings().dashboard_host)
+    parser.add_argument("--port", type=int, default=get_settings().dashboard_port)
+    parser.add_argument("--open", action="store_true", help="open the dashboard in the browser")
+    service = parser.add_mutually_exclusive_group()
+    service.add_argument("--install", action="store_true", help="keep it running from login (macOS LaunchAgent)")
+    service.add_argument("--uninstall", action="store_true", help="stop it and remove the LaunchAgent")
+    service.add_argument("--status", action="store_true", help="say whether the always-on dashboard runs")
 
 
 def main() -> None:

@@ -1,13 +1,14 @@
 """The pipeline: retrieve -> (Jev judge) -> grounded prompt -> generate."""
 
 import threading
+import time
 from collections.abc import Iterable, Iterator, Sequence
 
-from hci import corpus, jev
+from hci import corpus, jev, metrics
 from hci.config import get_settings
 from hci.constants import NOT_FOUND, STEP_MARKER, SYSTEM, Source
 from hci.index import HybridIndex, default_embedder
-from hci.types import Embed, Generate, RecordChunk, Retrieval
+from hci.types import Embed, Generate, RecordChunk, Retrieval, RetrievalEvent
 
 
 def status(step: str) -> str:
@@ -84,6 +85,7 @@ class ExplanationPipeline:
 
         Pinned first: the scenario's steps and facts, then facts that apply everywhere. Other scenarios are never
         searched. With the Jev judge on, irrelevant hits are dropped and an unanswerable question gets no chunks.
+        Writes a `retrieval` metric event.
 
         Args:
             question: The user question.
@@ -94,13 +96,17 @@ class ExplanationPipeline:
         Returns:
             The pinned passages then the search hits, and whether the question is answerable.
         """
+        start, k = time.perf_counter(), get_settings().k if k is None else k
         self.refresh()
         pinned = self._pinned(scenario)
         # follow-ups like "what does it compare it against?" only make sense with the previous question
         query = f"{history[-1][0]} {question}" if history else question
         skip = self._other_scenarios(scenario) | {c.id for c in pinned}
-        hits = self.index.search(query, get_settings().k if k is None else k, skip=skip)
-        return self._judged(query, pinned, hits) if self.judge else Retrieval(pinned + hits)
+        hits = self.index.search(query, k, skip=skip)
+        retrieval = self._judged(query, pinned, hits) if self.judge else Retrieval(pinned + hits)
+        latency = metrics.elapsed_ms(start)
+        metrics.emit(RetrievalEvent(latency, k, len(retrieval.chunks), len(pinned), self.judge, retrieval.answerable))
+        return retrieval
 
     def _scoped(self) -> list[RecordChunk]:
         return [c for c in self.chunks if c.source in (Source.PATH, Source.FACT)]
