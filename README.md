@@ -30,6 +30,7 @@ question ─► hybrid retrieval ─► Jev judge (optional) ─► grounded pro
 
 ```sh
 uv sync
+# API keys go in .env (git-ignored), e.g. ANTHROPIC_API_KEY=... ; load it with: uv run --env-file .env hci ...
 uv run hci -s 0 ask "In which order should I take the paths to finish first?"
 uv run hci -s 0 chat          # follow-up questions, '/fact <text>' records an update
 uv run hci fact -s 2 "Path Q is closed for maintenance"
