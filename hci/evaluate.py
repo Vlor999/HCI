@@ -10,7 +10,7 @@ from pathlib import Path
 
 from hci.agent import answerer
 from hci.config import get_settings
-from hci.constants import CASES_DIR, STEP_MARKER
+from hci.constants import CASES_DIR, REFUSAL_MARKERS, STEP_MARKER
 from hci.device import backend
 from hci.index import default_embedder
 from hci.rag import ExplanationPipeline, text_only
@@ -68,6 +68,17 @@ def _score_retrieval(ids: list[str], expect: dict) -> tuple[float | None, bool]:
     return recall, not want - got and not set(expect.get("not_retrieved", [])) & got and ids[: len(first)] == first
 
 
+def _answer_ok(text: str, case: dict) -> bool:
+    """Whether an answer meets the case's answer checks; an unanswerable case must refuse by default."""
+    expect, text = case["expect"], text.lower().replace("\u2019", "'")  # Claude writes curly apostrophes
+    any_of = expect.get("answer_contains_any", REFUSAL_MARKERS if case.get("unanswerable") else [])
+    return (
+        all(s.lower() in text for s in expect.get("answer_contains", []))
+        and (not any_of or any(s.lower() in text for s in any_of))
+        and not any(s.lower() in text for s in expect.get("answer_excludes", []))
+    )
+
+
 def _time_answer(answer: Answer, case: dict) -> tuple[bool, float, float | None]:
     """Streams one answer; returns whether it passes, the first-token delay and tokens per second."""
     t0, first, pieces = time.perf_counter(), None, []
@@ -78,11 +89,7 @@ def _time_answer(answer: Answer, case: dict) -> tuple[bool, float, float | None]
     end, text = time.perf_counter(), text_only(pieces).lower()
     first = first or end
     tok_s = (len(pieces) - 1) / (end - first) if end > first and len(pieces) > 1 else None  # ~1 token per piece
-    expect = case["expect"]
-    ok = all(s.lower() in text for s in expect.get("answer_contains", [])) and not any(
-        s.lower() in text for s in expect.get("answer_excludes", [])
-    )
-    return ok, first - t0, tok_s
+    return _answer_ok(text, case), first - t0, tok_s
 
 
 def _run_case(
@@ -94,8 +101,13 @@ def _run_case(
         t0 = time.perf_counter()
         retrieval = rag.retrieve(case["question"], case.get("scenario"), case.get("history", []))
         retrieve_s = time.perf_counter() - t0
-        recall, retrieval_ok = _score_retrieval([c.id for c in retrieval.chunks], expect)
-        if not answer or not {"answer_contains", "answer_excludes"} & expect.keys():
+        if rag.judge and case.get("unanswerable"):  # the right outcome is Jev refusing, whatever the pinning
+            recall, retrieval_ok = None, not retrieval.answerable
+        else:
+            recall, retrieval_ok = _score_retrieval([c.id for c in retrieval.chunks], expect)
+        if not answer or not (
+            {"answer_contains", "answer_contains_any", "answer_excludes"} & expect.keys() or case.get("unanswerable")
+        ):
             return CaseResult(case["id"], recall, retrieval_ok), retrieve_s, None
         answer_ok, first_s, tok_s = _time_answer(answer, case)
     return CaseResult(case["id"], recall, retrieval_ok, answer_ok), retrieve_s, (first_s, tok_s)

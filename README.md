@@ -181,8 +181,10 @@ runner uses the real embedder (downloaded once). CI runs `uv sync --locked` then
 Each file in `tests/cases/` is a JSON list of cases. The format is defined in `tests/cases/schema.json`, and pytest
 validates every file against it. A case gives a question, an optional scenario, history and facts, and what to expect:
 chunk ids that must or must not be in the context (pytest checks that each one names an existing file and a real
-chunk), chunks that must come first, and words the answer must contain
-or must not contain. `xfail` marks a known weakness, and the case still runs.
+chunk), chunks that must come first, and words the answer must all contain, at least one of
+(`answer_contains_any`), or must not contain. `unanswerable` marks a question the records do not answer: the answer
+must refuse (it contains one of the refusal markers of `hci/constants.py`), and with `--jev` retrieval passes when Jev
+refuses rather than on the pinned chunks. `xfail` marks a known weakness, and the case still runs.
 
 `hci eval` on an M4 Pro (MLX, 45 cases):
 

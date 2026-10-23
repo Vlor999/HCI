@@ -3,10 +3,11 @@
 import json
 import tempfile
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
-from hci import evaluate
+from hci import evaluate, jev
 from hci.config import get_settings
 
 FACT_CASE = {
@@ -90,3 +91,50 @@ def test_rates_skip_cases_without_the_check(tmp_path):
     assert report["recall"] == 0.5  # 1.0 and 0.0; the no-fact case expects no chunk
     assert report["answer_pass_rate"] == 1.0  # only the failing case has answer checks
     assert report["failures"] == [{"id": "fails", "recall": 0.0, "retrieval_ok": False, "answer_ok": True}]
+
+
+@pytest.mark.parametrize(("markers", "passes"), [(["no record", "answer to"], True), (["no record"], False)])
+def test_answer_contains_any(tmp_path, markers, passes):
+    """`answer_contains_any` passes when at least one marker appears in the answer, case-insensitively."""
+    # Arrange
+    case = {"id": "any", "question": "Why A?", "scenario": 0, "expect": {"answer_contains_any": markers}}
+    # Act
+    report = evaluate.run("cpu", None, answers=True, cases_dir=_make_cases_dir(tmp_path, case))
+    # Assert
+    assert report["answer_pass_rate"] == (1.0 if passes else 0.0)
+
+
+UNANSWERABLE_CASE = {
+    "id": "unanswerable",
+    "question": "How long is path D?",
+    "scenario": 0,
+    "unanswerable": True,
+    "expect": {"first": ["no-such-chunk"]},
+}
+
+
+@pytest.mark.parametrize(("answerable", "passes"), [(False, True), (True, False)])
+def test_unanswerable_with_judge_passes_iff_jev_refuses(tmp_path, monkeypatch, answerable, passes):
+    """With the judge on, an unanswerable case passes retrieval iff Jev refuses; its pinning expectations are skipped.
+
+    A Jev refusal streams `NOT_FOUND`, which satisfies the default refusal markers.
+    """
+    # Arrange
+    monkeypatch.setattr(jev, "judge", lambda query, chunks: ({c.id for c in chunks}, answerable))
+    monkeypatch.setattr(
+        evaluate, "answerer", lambda rag, provider, model: lambda q, s, h: rag.answer(q, MagicMock(), s, h)
+    )
+    # Act
+    report = evaluate.run("cpu", None, cases_dir=_make_cases_dir(tmp_path, UNANSWERABLE_CASE), judge=True)
+    # Assert
+    assert report["retrieval_pass_rate"] == (1.0 if passes else 0.0)
+    if passes:
+        assert report["answer_pass_rate"] == 1.0
+
+
+def test_unanswerable_without_judge_uses_retrieval_expectations(tmp_path):
+    """With the judge off, an unanswerable case is scored on its normal retrieval expectations."""
+    # Act
+    report = evaluate.run("cpu", None, answers=False, cases_dir=_make_cases_dir(tmp_path, UNANSWERABLE_CASE))
+    # Assert
+    assert report["retrieval_pass_rate"] == 0.0
