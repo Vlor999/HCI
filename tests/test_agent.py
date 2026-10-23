@@ -1,5 +1,6 @@
-"""Tests for hci.agent: the per-run tools, step labels and Anthropic error handling."""
+"""Tests for hci.agent: the per-run tools, step labels, Anthropic error handling and metric events."""
 
+import json
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -7,16 +8,18 @@ import anthropic
 import httpx2  # the HTTP client the Anthropic SDK builds its errors on
 import pytest
 
-from hci import agent
+from hci import agent, metrics
 from hci.config import get_settings
 from hci.constants import (
     AGENT_ERRORS,
     AGENT_NO_KEY,
     AGENT_NO_OPERATOR,
+    AGENT_REFUSAL,
     AGENT_STEP_ERROR,
     AGENT_STEP_FOUND,
     AGENT_STEP_REASONING,
     AGENT_STEP_THINKING,
+    MetricSource,
 )
 from hci.rag import status
 
@@ -161,3 +164,101 @@ def test_build_messages_alternates_history_and_states_scenario():
     # Assert
     assert [m["role"] for m in messages] == ["user", "assistant", "user"]
     assert messages[-1]["content"] == "The current scenario is 2.\n\nwhy?"
+
+
+def _make_turn(text: str, stop_reason: str, fallback: str | None = None) -> MagicMock:
+    """One model turn: a stream of one text delta and a final message with usage."""
+    iterations = [SimpleNamespace(type="fallback_message", model=fallback)] if fallback else None
+    usage = SimpleNamespace(
+        input_tokens=100,
+        output_tokens=20,
+        cache_creation_input_tokens=50,
+        cache_read_input_tokens=400,
+        iterations=iterations,
+    )
+    stream = MagicMock()
+    stream.__iter__.return_value = iter([SimpleNamespace(type="text", text=text)])
+    stream.get_final_message.return_value = SimpleNamespace(
+        stop_reason=stop_reason, model="claude-sonnet-5-5", usage=usage
+    )
+    return stream
+
+
+def _fake_runner(turns: list[MagicMock]):
+    """`tool_runner` stand-in: yields each turn and, between turns, calls `query_context` like the SDK does."""
+
+    def runner(**kwargs):
+        tools = {t.name: t for t in kwargs["tools"]}
+        for i, turn in enumerate(turns):
+            if i:
+                tools["query_context"].call({"query": "fastest path", "scenario": 0})
+            yield turn
+
+    return runner
+
+
+class TestAgentMetrics:
+    @pytest.fixture
+    def answer_events(self, rag, monkeypatch):
+        """Run one tracked agent answer (tool use, then a final turn) and return the written events."""
+
+        def run(final_stop: str = "end_turn", fallback: str | None = None) -> tuple[list[str], list[dict]]:
+            monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+            get_settings.cache_clear()
+            turns = [_make_turn("", "tool_use"), _make_turn("Take C.", final_stop, fallback)]
+            with patch("hci.agent.anthropic.Anthropic") as client_cls:
+                client_cls.return_value.beta.messages.tool_runner.side_effect = _fake_runner(turns)
+                stream = agent.ClaudeMemoryAgent(rag).answer("why?", 0)
+                pieces = list(metrics.track(stream, MetricSource.SERVER, "why?", 0))
+            lines = get_settings().metrics_file.read_text().splitlines()
+            return pieces, [json.loads(line) for line in lines]
+
+        return run
+
+    def test_turns_and_tool_share_the_request_id(self, answer_events):
+        """Each Claude turn and the tool call between them are logged under the answer's request id."""
+        # Act
+        _, events = answer_events()
+        # Assert
+        assert [e["kind"] for e in events] == ["model_turn", "retrieval", "tool", "model_turn", "request"]
+        assert len({e["request_id"] for e in events}) == 1
+        tool = events[2]
+        assert (tool["tool"], tool["ok"], tool["passages"]) == ("query_context", True, 9)
+        assert tool["result_chars"] > 0 and tool["duration_ms"] >= 0
+
+    def test_request_sums_usage_over_turns(self, answer_events):
+        """The request event sums Claude's usage over turns and keeps the last stop reason."""
+        # Act
+        _, events = answer_events()
+        # Assert
+        request = events[-1]
+        assert (request["provider"], request["model"]) == ("anthropic", "claude-sonnet-5-5")
+        assert (request["input_tokens"], request["output_tokens"]) == (200, 40)
+        assert (request["cache_creation_input_tokens"], request["cache_read_input_tokens"]) == (100, 800)
+        assert request["stop_reason"] == "end_turn" and request["refusal"] is False
+        assert request["model_ms"] >= 0 and request["tool_ms"] >= 0
+
+    def test_refusal_and_fallback_are_flagged(self, answer_events):
+        """A refusal stop and a server-side fallback model are recorded on the request."""
+        # Act
+        pieces, events = answer_events(final_stop="refusal", fallback="claude-opus-5")
+        # Assert
+        assert pieces[-1] == AGENT_REFUSAL
+        request, turn = events[-1], events[-2]
+        assert (request["refusal"], request["fallback_model"]) == (True, "claude-opus-5")
+        assert turn["fallback_model"] == "claude-opus-5"
+
+    def test_anthropic_error_class_is_recorded(self, rag, monkeypatch):
+        """An Anthropic error, turned into a message for the user, is still logged by class."""
+        # Arrange
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+        get_settings.cache_clear()
+        # Act
+        with patch("hci.agent.anthropic.Anthropic") as client_cls:
+            client_cls.return_value.beta.messages.tool_runner.side_effect = _make_status_error(
+                anthropic.RateLimitError, 429
+            )
+            list(metrics.track(agent.ClaudeMemoryAgent(rag).answer("q"), MetricSource.CLI, "q", None))
+        # Assert
+        (request,) = [json.loads(line) for line in get_settings().metrics_file.read_text().splitlines()]
+        assert request["error"] == "RateLimitError"

@@ -5,6 +5,7 @@ Per-request state (search count, pending steps, `propose`) lives on an `AgentRun
 """
 
 import json
+import time
 from collections.abc import Iterator, Sequence
 
 import anthropic
@@ -12,10 +13,10 @@ from anthropic import beta_tool
 from anthropic.lib.streaming import BetaMessageStream
 from anthropic.lib.tools import BetaStreamingToolRunner
 from anthropic.types import AnthropicBetaParam
-from anthropic.types.beta import BetaMessageParam
+from anthropic.types.beta import BetaMessage, BetaMessageParam
 from loguru import logger
 
-from hci import corpus, llm
+from hci import corpus, llm, metrics
 from hci.config import get_settings
 from hci.constants import (
     AGENT_BETAS,
@@ -36,7 +37,8 @@ from hci.constants import (
     AGENT_TOOL_STEPS,
 )
 from hci.rag import ExplanationPipeline, status
-from hci.types import Answer, Propose
+from hci.schemas import Provider
+from hci.types import Answer, ModelTurnEvent, Propose
 
 
 def reject(text: str, scenario: int | None) -> str:
@@ -54,7 +56,10 @@ def reject(text: str, scenario: int | None) -> str:
 
 def list_scenarios() -> str:
     """List the known scenarios with their index."""
-    return json.dumps({i: s.get("description", "") for i, s in enumerate(corpus.scenarios())})
+    with metrics.tool("list_scenarios") as event:
+        result = json.dumps({i: s.get("description", "") for i, s in enumerate(corpus.scenarios())})
+        event.result_chars = len(result)
+        return result
 
 
 class AgentRun:
@@ -81,12 +86,13 @@ class AgentRun:
             query: what to look for, in plain words.
             scenario: scenario index to focus on; its path steps and facts are always returned. Omit for all.
         """
-        self.searches += 1
-        chunks = self.rag.retrieve(query, scenario).chunks
-        self.events.append(AGENT_STEP_FOUND.format(len(chunks)))
-        if not chunks:
-            return AGENT_NOTHING_FOUND
-        return "\n".join(f"[{self.searches}.{i}] ({c.source}) {c.text}" for i, c in enumerate(chunks, 1))
+        with metrics.tool("query_context") as event:
+            self.searches += 1
+            chunks = self.rag.retrieve(query, scenario).chunks
+            self.events.append(AGENT_STEP_FOUND.format(len(chunks)))
+            result = "\n".join(f"[{self.searches}.{i}] ({c.source}) {c.text}" for i, c in enumerate(chunks, 1))
+            event.passages, event.result_chars = len(chunks), len(result or AGENT_NOTHING_FOUND)
+            return result or AGENT_NOTHING_FOUND
 
     def add_context(self, text: str, scenario: int | None = None) -> str:
         """Propose a new fact for the robot's memory (operator approval required).
@@ -95,7 +101,10 @@ class AgentRun:
             text: the fact, one self-contained sentence, e.g. "Path C is blocked by a fallen tree."
             scenario: scenario index it applies to; omit if it applies everywhere.
         """
-        return self.propose(text, scenario)
+        with metrics.tool("add_context") as event:
+            result = self.propose(text, scenario)
+            event.result_chars = len(result)
+            return result
 
     def drain_steps(self) -> Iterator[str]:
         """Yield the pending tool results as step lines, then forget them.
@@ -138,6 +147,7 @@ class ClaudeMemoryAgent:
         Yields:
             Answer text pieces and step lines.
         """
+        metrics.update(provider=Provider.ANTHROPIC.value, model=self.model)
         if self.client.api_key is None:
             yield status(AGENT_STEP_ERROR)
             yield AGENT_NO_KEY
@@ -147,15 +157,21 @@ class ClaudeMemoryAgent:
             yield from self._stream(AgentRun(self.rag, propose), build_messages(question, scenario, history))
         except (anthropic.APIConnectionError, anthropic.APIStatusError) as exc:
             logger.error("Anthropic request failed: {}", exc)
+            metrics.update(error=type(exc).__name__)
             yield status(AGENT_STEP_ERROR)
             yield "\n" + error_message(exc)
 
     def _stream(self, run: AgentRun, messages: list[BetaMessageParam]) -> Iterator[str]:
-        for stream in self._runner(run, messages):  # one stream per model turn; tools run between turns
+        # one stream per model turn; the runner runs the tools, then sends the next request, inside `next`
+        start, tools_before = time.perf_counter(), _tool_ms()
+        for stream in self._runner(run, messages):
             yield from run.drain_steps()
             yield from map_events(stream)
-            if stream.get_final_message().stop_reason == "refusal":
+            message = stream.get_final_message()
+            record_turn(message, max(0.0, round(metrics.elapsed_ms(start) - (_tool_ms() - tools_before), 1)))
+            if message.stop_reason == "refusal":
                 yield AGENT_REFUSAL
+            start, tools_before = time.perf_counter(), _tool_ms()
 
     def _runner(self, run: AgentRun, messages: list[BetaMessageParam]) -> BetaStreamingToolRunner:
         settings = get_settings()
@@ -172,6 +188,37 @@ class ClaudeMemoryAgent:
             fallbacks="default",
             stream=True,
         )
+
+
+def _tool_ms() -> float:
+    request = metrics.current()
+    return (request.tool_ms or 0) if request else 0
+
+
+def record_turn(message: BetaMessage, duration_ms: float) -> None:
+    """Write a `model_turn` event and add the turn's usage to the answer's request event.
+
+    Args:
+        message: The turn's final message.
+        duration_ms: Time from the turn's stream to its final message.
+    """
+    usage = message.usage
+    fallback = next((i.model for i in usage.iterations or () if i.type == "fallback_message"), None)
+    tokens = {
+        "input_tokens": usage.input_tokens,
+        "output_tokens": usage.output_tokens,
+        "cache_creation_input_tokens": usage.cache_creation_input_tokens,
+        "cache_read_input_tokens": usage.cache_read_input_tokens,
+    }
+    metrics.emit(
+        ModelTurnEvent(duration_ms, message.model, **tokens, stop_reason=message.stop_reason, fallback_model=fallback)
+    )
+    metrics.add(**tokens, model_ms=duration_ms)
+    metrics.update(stop_reason=message.stop_reason)
+    if message.stop_reason == "refusal":
+        metrics.update(refusal=True)
+    if fallback:
+        metrics.update(fallback_model=fallback)
 
 
 def build_messages(question: str, scenario: int | None, history: Sequence[tuple[str, str]]) -> list[BetaMessageParam]:
