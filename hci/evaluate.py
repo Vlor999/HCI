@@ -108,13 +108,16 @@ def _run_case(
         t0 = time.perf_counter()
         retrieval = rag.retrieve(case["question"], case.get("scenario"), case.get("history", []))
         retrieve_s = time.perf_counter() - t0
-        if rag.judge and case.get("unanswerable"):  # the right outcome is Jev refusing, whatever the pinning
+        judged = rag.judge and case.get("unanswerable")
+        if judged:  # the right outcome is Jev refusing, whatever the pinning
             recall, retrieval_ok = None, not retrieval.answerable
         else:
             recall, retrieval_ok = _score_retrieval([c.id for c in retrieval.chunks], expect)
-        if not answer or not (
-            {"answer_contains", "answer_contains_any", "answer_excludes"} & expect.keys() or case.get("unanswerable")
-        ):
+        checks = (
+            case.get("unanswerable") or {"answer_contains", "answer_contains_any", "answer_excludes"} & expect.keys()
+        )
+        # a Jev refusal streams the constant NOT_FOUND: that one decision is scored once, as retrieval
+        if not answer or not checks or (judged and not retrieval.answerable):
             return CaseResult(case["id"], recall, retrieval_ok), retrieve_s, None
         answer_ok, first_s, tok_s = _time_answer(answer, case)
     return CaseResult(case["id"], recall, retrieval_ok, answer_ok), retrieve_s, (first_s, tok_s)

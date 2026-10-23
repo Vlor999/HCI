@@ -116,9 +116,9 @@ UNANSWERABLE_CASE = {
 
 @pytest.mark.parametrize(("answerable", "passes"), [(False, True), (True, False)])
 def test_unanswerable_with_judge_passes_iff_jev_refuses(tmp_path, monkeypatch, answerable, passes):
-    """With the judge on, an unanswerable case passes retrieval iff Jev refuses; its pinning expectations are skipped.
+    """With the judge on, an unanswerable case passes retrieval iff Jev refuses; pinning and recall are skipped.
 
-    A Jev refusal streams `NOT_FOUND`, which satisfies the default refusal markers.
+    A Jev refusal streams the constant `NOT_FOUND`, so its answer is not scored a second time.
     """
     # Arrange
     monkeypatch.setattr(jev, "judge", lambda query, chunks: ({c.id for c in chunks}, answerable))
@@ -129,8 +129,9 @@ def test_unanswerable_with_judge_passes_iff_jev_refuses(tmp_path, monkeypatch, a
     report = evaluate.run("cpu", None, cases_dir=_make_cases_dir(tmp_path, UNANSWERABLE_CASE), judge=True)
     # Assert
     assert report["retrieval_pass_rate"] == (1.0 if passes else 0.0)
+    assert report["recall"] is None
     if passes:
-        assert report["answer_pass_rate"] == 1.0
+        assert report["answer_pass_rate"] is None
 
 
 def test_unanswerable_without_judge_uses_retrieval_expectations(tmp_path):
