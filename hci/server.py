@@ -15,18 +15,20 @@ from functools import cache, partial
 import uvicorn
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from loguru import logger
 
 from hci import corpus
 from hci.agent import answerer
 from hci.config import get_settings
-from hci.constants import AGENT_PROPOSED_ON_PHONE, PROPOSALS_MARKER, WEB_PAGE
+from hci.constants import AGENT_PROPOSED_ON_PHONE, PROPOSALS_MARKER, VENDOR_DIR, WEB_PAGE
 from hci.device import backend
 from hci.rag import ExplanationPipeline
 from hci.schemas import AskRequest, FactRequest, Provider
 from hci.types import Answer
 
 app = FastAPI(title="HCI robot explainer")
+app.mount("/vendor", StaticFiles(directory=VENDOR_DIR), name="vendor")
 answerers: dict[str, Answer] = {}
 # ponytail: one local generation at a time (local models aren't thread-safe), fine for one robot; a queue per backend
 # if several phones share a GPU. Claude requests and fact writes never wait for it.

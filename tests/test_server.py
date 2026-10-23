@@ -154,3 +154,14 @@ def test_fact_approval_does_not_wait_for_local_stream(client, monkeypatch, fake_
     fake_rag.add_fact.assert_called_once_with("f", None)
     release.set()
     stream.join(5)
+
+
+@pytest.mark.parametrize("path", ["/vendor/marked.min.js", "/vendor/purify.min.js"])
+def test_markdown_libraries_are_served_locally(client: TestClient, path: str):
+    """The page renders Markdown offline: marked and DOMPurify come from the server, not a CDN."""
+    # Act
+    response = client.get(path)
+
+    # Assert
+    assert response.status_code == 200
+    assert "javascript" in response.headers["content-type"]

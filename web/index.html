@@ -23,7 +23,23 @@
   button:disabled { opacity: .5; }
   #log { margin: 16px 0; display: flex; flex-direction: column; gap: 12px; }
   .q { font-weight: 600; }
-  .a { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; white-space: pre-wrap; }
+  .a { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 4px 14px; overflow-wrap: anywhere; }
+  .a.err, .a.plain { white-space: pre-wrap; padding: 12px; }
+  .a h1, .a h2, .a h3 { font-size: 1.05rem; margin: 14px 0 6px; } .a h1 { font-size: 1.15rem; }
+  .a p, .a ul, .a ol { margin: 8px 0; } .a ul, .a ol { padding-left: 22px; } .a li { margin: 2px 0; }
+  .a table { border-collapse: collapse; width: 100%; font-size: .9rem; margin: 8px 0; display: block; overflow-x: auto; }
+  .a th, .a td { border: 1px solid var(--line); padding: 6px 8px; text-align: left; } .a th { background: var(--bg); }
+  .a code { background: var(--bg); border-radius: 4px; padding: 1px 4px; font-size: .9em; }
+  .a pre { background: var(--bg); border-radius: 8px; padding: 10px; overflow-x: auto; } .a pre code { padding: 0; }
+  .a blockquote { margin: 8px 0; padding: 4px 12px; border-left: 3px solid var(--line); color: var(--muted); }
+  .a hr { border: 0; border-top: 1px solid var(--line); margin: 12px 0; }
+  .a input[type=checkbox] { margin-right: 6px; }
+  .callout { margin: 8px 0; padding: 8px 12px; border-radius: 8px; border-left: 4px solid var(--c); background: color-mix(in srgb, var(--c) 12%, transparent); color: var(--fg); }
+  .callout > .title { font-weight: 600; margin-bottom: 2px; }
+  .callout.note { --c: #3b82f6; } .callout.tip { --c: #2f9e5b; } .callout.important { --c: #8b5cf6; }
+  .callout.warning { --c: #d97706; } .callout.caution { --c: #dc2626; }
+  .cite { display: inline-block; font-size: .72rem; line-height: 1.4; padding: 0 6px; border-radius: 999px; background: var(--bg);
+          border: 1px solid var(--line); color: var(--muted); vertical-align: 1px; }
   .err { color: #c0392b; }
   small { color: var(--muted); }
   .steps { color: var(--muted); font-size: .85rem; white-space: pre-line; }
@@ -37,12 +53,14 @@
   <select id="provider" aria-label="Model"></select>
 </div>
 <div id="log"></div>
-<textarea id="q" rows="3" aria-label="Question, or fact to save"placeholder="Why did you avoid path A?"></textarea>
+<textarea id="q" rows="3" aria-label="Question, or fact to save" placeholder="Why did you avoid path A?"></textarea>
 <div class="row" style="margin-top:8px">
   <button id="ask">Ask</button>
   <button id="fact" class="ghost">Save as fact</button>
 </div>
 <p><small id="status"></small></p>
+<script src="/vendor/marked.min.js"></script>
+<script src="/vendor/purify.min.js"></script>
 <script>
   if (location.hash.length > 1) {
     try { localStorage.setItem("token", location.hash.slice(1)); } catch {}
@@ -71,19 +89,55 @@
         { question, scenario: scenario(), provider: $("provider").value, history: turns.slice(-3) }) });
       if (!r.ok) throw new Error(await r.text());
       const reader = r.body.getReader(), dec = new TextDecoder();
-      let raw = "";
+      let raw = "", text = "";
       // stream markers: \x1f starts a step line, \x1e starts the proposals JSON (single definition: hci/constants.py)
       for (let c; !(c = await reader.read()).done;) {
         raw += dec.decode(c.value, { stream: true });
         const [body] = raw.split("\x1e"), done = [...body.matchAll(/\x1f([^\n]*)\n/g)].map(m => m[1]);
         steps.textContent = done.length ? "· " + done.join("\n· ") : "";
-        a.textContent = body.replace(/\x1f[^\n]*(\n|$)/g, ""); a.scrollIntoView({ block: "end" });
+        text = body.replace(/\x1f[^\n]*(\n|$)/g, ""); renderMarkdown(a, text); a.scrollIntoView({ block: "end" });
       }
-      turns.push([question, a.textContent]);
+      turns.push([question, text]);
       if (raw.includes("\x1e")) JSON.parse(raw.split("\x1e")[1]).forEach(showProposal);
     } catch (e) { a.classList.add("err"); a.textContent = String(e.message || e); }
     $("ask").disabled = false;
   };
+
+  // Markdown + Notion-like extras: > [!NOTE|TIP|IMPORTANT|WARNING|CAUTION] callouts and [1] / [1.2] citation badges.
+  // Model output is untrusted: always sanitized by DOMPurify before it reaches the page.
+  const CITE = String.raw`\d+(?:\.\d+)?(?:[–-]\d+(?:\.\d+)?)?`;  // 2, 1.2, 1.1–1.3
+  const CITATION = new RegExp(String.raw`(\[${CITE}(?:,\s*${CITE})*\])`);  // [2], [1.5, 1.9]
+  const CALLOUTS = { NOTE: "Note", TIP: "Tip", IMPORTANT: "Important", WARNING: "Warning", CAUTION: "Caution" };
+
+  function renderMarkdown(el, text) {
+    if (!window.marked || !window.DOMPurify) { el.classList.add("plain"); el.textContent = text; return; }
+    el.innerHTML = DOMPurify.sanitize(marked.parse(text, { gfm: true, breaks: true }));
+    el.querySelectorAll("blockquote").forEach(toCallout);
+    citeBadges(el);
+  }
+
+  function toCallout(quote) {
+    const first = quote.querySelector("p"), m = first && first.textContent.match(/^\s*\[!(\w+)\]\s*/);
+    if (!m || !CALLOUTS[m[1].toUpperCase()]) return;
+    const kind = m[1].toUpperCase(), box = document.createElement("div"), title = document.createElement("div");
+    box.className = "callout " + kind.toLowerCase(); title.className = "title"; title.textContent = CALLOUTS[kind];
+    first.firstChild.textContent = first.firstChild.textContent.replace(/^\s*\[!\w+\]\s*/, "");
+    box.append(title, ...quote.childNodes); quote.replaceWith(box);
+  }
+
+  function citeBadges(el) {
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT), nodes = [];
+    while (walker.nextNode()) if (!walker.currentNode.parentElement.closest("code, pre")) nodes.push(walker.currentNode);
+    for (const node of nodes) {
+      const parts = node.textContent.split(CITATION);
+      if (parts.length === 1) continue;
+      node.replaceWith(...parts.map((part, i) => {
+        if (i % 2 === 0) return part;
+        const badge = document.createElement("span"); badge.className = "cite"; badge.textContent = part.slice(1, -1);
+        return badge;
+      }));
+    }
+  }
 
   function showProposal(p) {
     const box = document.createElement("div"); box.className = "proposal";

@@ -10,7 +10,23 @@ Explain its path choices to a human using only the numbered context passages.
 - Operator updates are the newest information: when they contradict a record, follow the update.
 - Reason about safety, terrain, energy and ecological impact; give the decision first, then the justification.
 - Travel times are precomputed in the passages; use them instead of recomputing.
-- Cite the passages you rely on like [2]. If the context does not answer the question, say so."""
+- Cite the passages you rely on like [2]. If the context does not answer the question, say so.
+- Write in Markdown (the phone renders it like Notion): bold, lists, `- [ ]` checklists, tables, `code`, and
+  callouts, a quote whose first line is [!NOTE], [!TIP], [!IMPORTANT], [!WARNING] or [!CAUTION] on its own.
+  Start with the decision as one bold sentence. Use a table only to compare paths. Example shape:
+
+  **Take path C first.**
+
+  | Path | Time | Terrain | Risk |
+  |---|---|---|---|
+  | C | 5.4 min | paved, flat | low [3] |
+
+  - C is the fastest and the most stable [3].
+
+  > [!WARNING]
+  > Slow down on path B if it is icy [2].
+
+  Keep short answers short: no table for a one-line answer."""
 
 AGENT_SYSTEM = (
     SYSTEM
@@ -63,6 +79,7 @@ CORRECTIONS_DIR = DATA_DIR / "corrections"
 EXPLANATIONS_FILE = DATA_DIR / "explanations" / "sample_explanations.json"
 FACTS_FILE = DATA_DIR / "facts.json"
 WEB_PAGE = ROOT_DIR / "web" / "index.html"
+VENDOR_DIR = ROOT_DIR / "web" / "vendor"  # pinned marked + DOMPurify, served locally (works offline)
 CASES_DIR = ROOT_DIR / "tests" / "cases"
 
 

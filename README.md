@@ -81,7 +81,10 @@ uv run hci serve              # prints http://<lan-ip>:8000/#<token>
 ```
 
 Open the printed link on a phone on the same Wi-Fi, then use Share → Add to Home Screen. The page streams answers,
-keeps the last turns as history, and saves facts. For each question you pick where generation runs:
+keeps the last turns as history, and saves facts. Answers render as Markdown with Notion-like extras: tables,
+checklists, `> [!NOTE|TIP|IMPORTANT|WARNING|CAUTION]` callouts and `[1.2]` citation badges. The model output is
+sanitized with DOMPurify; marked and DOMPurify are pinned copies in `web/vendor/`, served by `hci serve`, so the page
+works offline. For each question you pick where generation runs:
 
 - **on-prem**: the model runs on the machine running `hci serve` (MLX on a Mac, CUDA on a GPU box). Nothing leaves
   your network.
@@ -129,7 +132,7 @@ or must not contain. `xfail` marks a known weakness, and the case still runs.
 | --- | --- | --- |
 | Retrieval pass rate | 84 % (7 paraphrase misses marked `xfail`) | same |
 | Recall of expected chunks | 74 % | same |
-| Answer pass rate | 90 % | 81 % |
+| Answer pass rate | 95 % | 81 % (before the Markdown prompt) |
 | Retrieval latency (p50) | 7 ms | 6 ms |
 | First token (p50) | 1.25 s | 0.8 s |
 | Generation | 85 tokens/s | 67 tokens/s |
