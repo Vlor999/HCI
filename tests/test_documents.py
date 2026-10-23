@@ -254,3 +254,14 @@ def test_overlap_must_be_below_chunk_size(monkeypatch: pytest.MonkeyPatch):
     # Act / Assert
     with pytest.raises(ValueError, match="chunk_overlap_words"):
         get_settings()
+
+
+@pytest.mark.parametrize(
+    ("filename", "expected"),
+    [("../../x.md", "x.md"), ("..\\..\\x.md", "x.md"), (".env.md", "env.md"), ("my notes;rm.md", "my_notes_rm.md")],
+    ids=["posix-traversal", "windows-traversal", "hidden", "odd-characters"],
+)
+def test_safe_name(filename: str, expected: str):
+    """Client file names lose folders, leading dots and characters outside word, `.` and `-`."""
+    # Act / Assert
+    assert documents.safe_name(filename) == expected

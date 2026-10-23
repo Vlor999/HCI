@@ -53,6 +53,11 @@ class ExplanationPipeline:
         self.chunks = corpus.load()
         self.index = HybridIndex(self.chunks, self.embed)
 
+    def refresh(self) -> None:
+        """Reload the corpus if data/, the documents folder or the facts file changed since the last load."""
+        if corpus.stamp() != self.stamp:
+            self.reload()
+
     def add_fact(self, text: str, scenario: int | None = None) -> None:
         """Save an operator-approved fact and reindex.
 
@@ -80,8 +85,7 @@ class ExplanationPipeline:
         Returns:
             The pinned passages then the search hits, and whether the question is answerable.
         """
-        if corpus.stamp() != self.stamp:
-            self.reload()
+        self.refresh()
         pinned = self._pinned(scenario)
         # follow-ups like "what does it compare it against?" only make sense with the previous question
         query = f"{history[-1][0]} {question}" if history else question

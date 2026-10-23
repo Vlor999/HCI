@@ -19,12 +19,13 @@ from loguru import logger
 from pypdf import PdfReader
 
 from hci.config import get_settings
-from hci.constants import DOCUMENT_EXTENSIONS, PAGES_EXPORT_SCRIPT, ROOT_DIR, Source
+from hci.constants import DOCUMENT_EXTENSIONS, PAGES_EXPORT_SCRIPT, ROOT_DIR, UPLOADS_DIRNAME, Source
 from hci.types import DocumentSection, RecordChunk
 
 HEADING = re.compile(r"^(#{1,6})\s+(.+?)\s*#*\s*$")  # ATX Markdown heading
 SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
 PARAGRAPH_BREAK = re.compile(r"\n\s*\n")
+UNSAFE_NAME_CHARS = re.compile(r"[^\w.-]+")
 
 
 def file_ref(path: Path) -> str:
@@ -54,6 +55,43 @@ def document_files() -> list[Path]:
         and p.suffix.lower() in DOCUMENT_EXTENSIONS
         and not any(part.startswith(".") for part in p.relative_to(root).parts)
     )
+
+
+def safe_name(filename: str) -> str:
+    """A client file name made safe to save: no folders, no leading dots, only word characters, `.` and `-`.
+
+    Args:
+        filename: The name sent by the client, possibly with a path (`../../x.md`, `C:\\x.md`).
+
+    Returns:
+        The base name, possibly empty.
+    """
+    base = re.split(r"[\\/]", filename)[-1]
+    return UNSAFE_NAME_CHARS.sub("_", base).lstrip(".")
+
+
+def save_upload(name: str, data: bytes) -> Path:
+    """Save an uploaded document in the uploads subfolder, never overwriting: `name-1.ext`, `name-2.ext`...
+
+    Args:
+        name: A name from `safe_name`.
+        data: The file content.
+
+    Returns:
+        The saved file.
+    """
+    folder = get_settings().documents_dir / UPLOADS_DIRNAME
+    folder.mkdir(parents=True, exist_ok=True)
+    stem, suffix = Path(name).stem, Path(name).suffix
+    n = 0
+    while True:
+        path = folder / (f"{stem}-{n}{suffix}" if n else name)
+        try:
+            with path.open("xb") as f:  # exclusive create: two uploads of the same name never overwrite each other
+                f.write(data)
+            return path
+        except FileExistsError:
+            n += 1
 
 
 def load_documents() -> list[RecordChunk]:

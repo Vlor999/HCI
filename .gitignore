@@ -16,3 +16,4 @@ data/facts.json
 *.toc
 *_review.md
 .worktrees/
+data/documents/uploads/

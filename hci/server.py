@@ -11,21 +11,22 @@ import threading
 from collections.abc import Iterator
 from contextlib import nullcontext
 from functools import cache, partial
+from pathlib import Path
 
 import uvicorn
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from loguru import logger
 
-from hci import corpus
+from hci import corpus, documents
 from hci.agent import answerer
 from hci.config import get_settings
-from hci.constants import AGENT_PROPOSED_ON_PHONE, PROPOSALS_MARKER, VENDOR_DIR, WEB_PAGE
+from hci.constants import AGENT_PROPOSED_ON_PHONE, DOCUMENT_EXTENSIONS, PROPOSALS_MARKER, VENDOR_DIR, WEB_PAGE
 from hci.device import backend
 from hci.rag import ExplanationPipeline
-from hci.schemas import AskRequest, FactRequest, Provider
-from hci.types import Answer
+from hci.schemas import AskRequest, DocumentInfo, FactRequest, Provider
+from hci.types import Answer, RecordChunk
 
 app = FastAPI(title="HCI robot explainer")
 app.mount("/vendor", StaticFiles(directory=VENDOR_DIR), name="vendor")
@@ -81,12 +82,16 @@ def index() -> FileResponse:
 
 @app.get("/api/info", dependencies=[Depends(auth)])
 def info() -> dict:
-    """List providers and scenarios for the page's pickers.
+    """List providers, scenarios and accepted document types for the page's pickers.
 
     Returns:
-        `providers` (default first) and scenario descriptions by index.
+        `providers` (default first), scenario descriptions by index and `document_types` (file extensions).
     """
-    return {"providers": providers(), "scenarios": [s.get("description", "") for s in corpus.scenarios()]}
+    return {
+        "providers": providers(),
+        "scenarios": [s.get("description", "") for s in corpus.scenarios()],
+        "document_types": list(DOCUMENT_EXTENSIONS),
+    }
 
 
 @app.post("/api/ask", dependencies=[Depends(auth)])
@@ -122,6 +127,59 @@ def add_fact(fact: FactRequest) -> dict:
     with facts_lock:
         get_rag().add_fact(fact.text, fact.scenario)
     return {"ok": True}
+
+
+@app.get("/api/documents", dependencies=[Depends(auth)])
+def list_documents() -> list[DocumentInfo]:
+    """List the documents of the documents folder with their number of indexed chunks.
+
+    Returns:
+        One entry per supported file, in path order.
+    """
+    rag = get_rag()
+    rag.refresh()
+    return [_document_info(path, rag.chunks) for path in documents.document_files()]
+
+
+@app.post("/api/documents", dependencies=[Depends(auth)])
+def upload_document(file: UploadFile) -> DocumentInfo:
+    """Save an uploaded document in the uploads folder and index it.
+
+    Args:
+        file: the multipart file.
+
+    Returns:
+        The saved name and its number of chunks.
+
+    Raises:
+        HTTPException: 415 for an unsupported type, 413 above `max_upload_mb`, 422 when no text can be read.
+    """
+    name = documents.safe_name(file.filename or "")
+    if Path(name).suffix.lower() not in DOCUMENT_EXTENSIONS:
+        raise HTTPException(415, f"Unsupported file type. Send one of: {', '.join(DOCUMENT_EXTENSIONS)}.")
+    path = documents.save_upload(name, _read_upload(file))
+    rag = get_rag()
+    rag.refresh()
+    info = _document_info(path, rag.chunks)
+    if not info.chunks:
+        path.unlink()
+        raise HTTPException(422, f"No text could be read from {file.filename}. Try exporting it as PDF.")
+    logger.info("Indexed upload {} ({} chunks)", path, info.chunks)
+    return info
+
+
+def _read_upload(file: UploadFile) -> bytes:
+    limit = int(get_settings().max_upload_mb * 1024 * 1024)
+    data = file.file.read(limit + 1)  # one byte past the limit is enough to know it is too big
+    if len(data) > limit:
+        raise HTTPException(413, f"File too large: the limit is {get_settings().max_upload_mb:g} MB.")
+    return data
+
+
+def _document_info(path: Path, chunks: list[RecordChunk]) -> DocumentInfo:
+    prefix = documents.file_ref(path) + "#"
+    name = path.relative_to(get_settings().documents_dir).as_posix()
+    return DocumentInfo(name=name, chunks=sum(c.id.startswith(prefix) for c in chunks))
 
 
 def _propose(proposals: list[dict], text: str, scenario: int | None) -> str:
