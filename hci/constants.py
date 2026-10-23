@@ -1,0 +1,87 @@
+"""Immutable values shared across the package: prompts, markers, model ids, URLs, paths, labels."""
+
+from enum import StrEnum
+from pathlib import Path
+
+# --- Prompts -----------------------------------------------------------------
+
+SYSTEM = """You are the explanation module of a mobile robot that navigates a forest with LIDAR, camera and IMU.
+Explain its path choices to a human using only the numbered context passages.
+- Operator updates are the newest information: when they contradict a record, follow the update.
+- Reason about safety, terrain, energy and ecological impact; give the decision first, then the justification.
+- Travel times are precomputed in the passages; use them instead of recomputing.
+- Cite the passages you rely on like [2]. If the context does not answer the question, say so."""
+
+AGENT_SYSTEM = (
+    SYSTEM
+    + """
+
+You have tools over the robot's memory:
+- query_context: search the records. Call it before answering, as often as needed (paths, manual, past corrections).
+- add_context: when the user reports a new observation or change (a closed path, new weather, a repair), propose it
+  as a fact. The operator approves it; do not claim it is saved unless the tool says so.
+Passage numbers restart at each search; cite them as [search.passage], e.g. [1.2]."""
+)
+
+NOT_FOUND = "I can't answer that from the robot's records."
+
+# --- Stream protocol ---------------------------------------------------------
+
+STEP_MARKER = "\x1f"  # stream lines starting with this are progress steps, not answer text
+PROPOSALS_MARKER = "\x1e"  # followed by a JSON list of facts the agent proposes, at the end of the stream
+
+# --- Models ------------------------------------------------------------------
+
+LOCAL_MODELS = {
+    "mlx": "mlx-community/Qwen3-4B-4bit",
+    "cuda": "Qwen/Qwen3-4B",
+    "cpu": "Qwen/Qwen3-0.6B",
+}
+CLAUDE_MODEL = "claude-sonnet-5-5"
+AGENT_BETAS = ("server-side-fallback-2026-07-01",)
+QUERY_PREFIX = "Represent this sentence for searching relevant passages: "  # bge query instruction
+
+# --- Jev (TypeSafe AI) -------------------------------------------------------
+
+JEV_URL = "https://api.typesafe.ai/v1/systemone"
+JEV_PASSAGE_QUESTION = "Does `passages.{key}` help answer `query`?"
+JEV_ANSWERABLE_QUESTION = "Taken together, do `passages` contain enough information to answer `query`?"
+
+# --- Retrieval ---------------------------------------------------------------
+
+BM25_K1 = 1.5
+BM25_B = 0.75
+RRF_K = 60  # reciprocal rank fusion constant
+
+# --- Paths -------------------------------------------------------------------
+
+ROOT_DIR = Path(__file__).resolve().parent.parent
+DATA_DIR = ROOT_DIR / "data"
+PATHS_FILE = DATA_DIR / "paths.json"
+MANUAL_FILE = DATA_DIR / "documents" / "sample_manual.md"
+CORRECTIONS_DIR = DATA_DIR / "corrections"
+EXPLANATIONS_FILE = DATA_DIR / "explanations" / "sample_explanations.json"
+FACTS_FILE = DATA_DIR / "facts.json"
+WEB_PAGE = ROOT_DIR / "web" / "index.html"
+CASES_DIR = ROOT_DIR / "tests" / "cases"
+
+
+class Source(StrEnum):
+    """Where a record chunk comes from."""
+
+    PATH = "path"
+    MANUAL = "manual"
+    CORRECTION = "correction"
+    EXAMPLE = "example"
+    FACT = "fact"
+
+
+# --- Chat --------------------------------------------------------------------
+
+COMMANDS = {
+    "/fact": "record an operator update: /fact <text>",
+    "/scenario": "show or switch the current scenario: /scenario <n>",
+    "/clear": "forget this conversation",
+    "/help": "list commands",
+    "/exit": "quit",
+}

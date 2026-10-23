@@ -1,7 +1,7 @@
 import argparse
 
 from hci import corpus
-from hci.rag import STATUS
+from hci.constants import COMMANDS, STEP_MARKER
 
 
 def main() -> None:
@@ -54,20 +54,11 @@ def main() -> None:
 
 
 def show(t: str) -> str:
-    if t.startswith(STATUS):
+    if t.startswith(STEP_MARKER):
         print(f"\n\033[2m· {t[1:].strip()}\033[0m", flush=True)
         return ""
     print(t, end="", flush=True)
     return t
-
-
-COMMANDS = {
-    "/fact": "record an operator update: /fact <text>",
-    "/scenario": "show or switch the current scenario: /scenario <n>",
-    "/clear": "forget this conversation",
-    "/help": "list commands",
-    "/exit": "quit",
-}
 
 
 def chat(answer, rag, scenario: int | None, propose) -> None:

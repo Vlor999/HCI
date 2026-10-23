@@ -3,26 +3,17 @@
 from collections.abc import Iterator, Sequence
 
 from hci import corpus, jev
+from hci.constants import NOT_FOUND, STEP_MARKER, SYSTEM, Source
 from hci.index import Embed, Index, default_embedder
 from hci.llm import Generate
 
-SYSTEM = """You are the explanation module of a mobile robot that navigates a forest with LIDAR, camera and IMU.
-Explain its path choices to a human using only the numbered context passages.
-- Operator updates are the newest information: when they contradict a record, follow the update.
-- Reason about safety, terrain, energy and ecological impact; give the decision first, then the justification.
-- Travel times are precomputed in the passages; use them instead of recomputing.
-- Cite the passages you rely on like [2]. If the context does not answer the question, say so."""
-
-NOT_FOUND = "I can't answer that from the robot's records."
-STATUS = "\x1f"  # stream lines starting with this are progress steps, not answer text
-
 
 def status(step: str) -> str:
-    return f"{STATUS}{step}\n"
+    return f"{STEP_MARKER}{step}\n"
 
 
 def text_only(pieces) -> str:
-    return "".join(p for p in pieces if not p.startswith(STATUS))
+    return "".join(p for p in pieces if not p.startswith(STEP_MARKER))
 
 
 class RAG:
@@ -47,9 +38,9 @@ class RAG:
         None = not answerable."""
         if corpus.stamp() != self.stamp:
             self.reload()
-        scoped = [c for c in self.chunks if c.source in ("path", "fact")]
+        scoped = [c for c in self.chunks if c.source in (Source.PATH, Source.FACT)]
         pinned = [c for c in scoped if c.scenario == scenario] + [
-            c for c in scoped if c.source == "fact" and c.scenario is None and scenario is not None
+            c for c in scoped if c.source == Source.FACT and c.scenario is None and scenario is not None
         ]
         other = {c.id for c in scoped if scenario is not None and c.scenario not in (None, scenario)}
         # follow-ups like "what does it compare it against?" only make sense with the previous question
@@ -64,8 +55,8 @@ class RAG:
 
     def prompt(self, question: str, ctx: list[corpus.Chunk], history: Sequence[tuple[str, str]] = ()) -> str:
         n = dict(zip((c.id for c in ctx), range(1, len(ctx) + 1)))
-        passages = "\n".join(f"[{n[c.id]}] ({c.source}) {c.text}" for c in ctx if c.source != "fact")
-        updates = "\n".join(f"[{n[c.id]}] {c.text}" for c in ctx if c.source == "fact")
+        passages = "\n".join(f"[{n[c.id]}] ({c.source}) {c.text}" for c in ctx if c.source != Source.FACT)
+        updates = "\n".join(f"[{n[c.id]}] {c.text}" for c in ctx if c.source == Source.FACT)
         if updates:  # small models skim past facts buried among records, so they get their own section
             passages = (
                 f"OPERATOR UPDATES (newest information, they override the records below):\n{updates}\n\n{passages}"

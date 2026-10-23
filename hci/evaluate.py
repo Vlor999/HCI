@@ -8,11 +8,10 @@ from pathlib import Path
 
 from hci import corpus
 from hci.agent import answerer
+from hci.constants import CASES_DIR, STEP_MARKER
 from hci.device import backend
 from hci.index import default_embedder
-from hci.rag import RAG, STATUS, text_only
-
-CASES_DIR = Path(__file__).resolve().parent.parent / "tests" / "cases"
+from hci.rag import RAG, text_only
 
 
 def cases() -> list[dict]:
@@ -56,7 +55,7 @@ def run(provider: str | None, model: str | None, answers: bool = True) -> dict:
             if answer and ("answer_contains" in expect or "answer_excludes" in expect):
                 t0, first, pieces = time.perf_counter(), None, []
                 for p in answer(case["question"], case.get("scenario"), case.get("history", [])):
-                    if not p.startswith(STATUS):
+                    if not p.startswith(STEP_MARKER):
                         first = first or time.perf_counter()
                         pieces.append(p)
                 end, text = time.perf_counter(), text_only(pieces).lower()

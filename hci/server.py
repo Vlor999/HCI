@@ -5,7 +5,6 @@ import os
 import secrets
 import threading
 from functools import cache
-from pathlib import Path
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
@@ -13,12 +12,12 @@ from pydantic import BaseModel
 
 from hci import corpus
 from hci.agent import Answer, answerer
+from hci.constants import PROPOSALS_MARKER, WEB_PAGE
 from hci.device import backend
 from hci.rag import RAG
 
 TOKEN = os.environ.get("HCI_TOKEN") or secrets.token_urlsafe(16)
 PROVIDERS = [backend(), "anthropic"]
-WEB = Path(__file__).resolve().parent.parent / "web" / "index.html"
 
 app = FastAPI(title="HCI robot explainer")
 answerers: dict[str, Answer] = {}
@@ -49,7 +48,7 @@ class Fact(BaseModel):
 
 @app.get("/")
 def index() -> FileResponse:
-    return FileResponse(WEB)
+    return FileResponse(WEB_PAGE)
 
 
 @app.get("/api/info", dependencies=[Depends(auth)])
@@ -74,7 +73,7 @@ def ask(req: Ask) -> StreamingResponse:
                 answerers[req.provider] = answerer(get_rag(), req.provider)
             yield from answerers[req.provider](req.question, req.scenario, req.history, propose)
         if proposals:  # facts the agent wants to save; the page shows approve buttons
-            yield "\x1e" + json.dumps(proposals)
+            yield PROPOSALS_MARKER + json.dumps(proposals)
 
     return StreamingResponse(stream(), media_type="text/plain; charset=utf-8")
 

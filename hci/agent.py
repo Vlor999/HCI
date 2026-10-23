@@ -12,9 +12,9 @@ import anthropic
 from anthropic import beta_tool
 
 from hci import corpus, llm
-from hci.rag import RAG, SYSTEM, status
+from hci.constants import AGENT_BETAS, AGENT_SYSTEM, CLAUDE_MODEL
+from hci.rag import RAG, status
 
-MODEL = "claude-sonnet-5-5"
 Propose = Callable[[str, int | None], str]  # (fact, scenario) -> tool result shown to the model
 Answer = Callable[..., Iterator[str]]  # (question, scenario=None, history=(), propose=reject)
 
@@ -23,20 +23,8 @@ def reject(text: str, scenario: int | None) -> str:
     return "Not saved: no operator available to approve facts here."
 
 
-AGENT_SYSTEM = (
-    SYSTEM
-    + """
-
-You have tools over the robot's memory:
-- query_context: search the records. Call it before answering, as often as needed (paths, manual, past corrections).
-- add_context: when the user reports a new observation or change (a closed path, new weather, a repair), propose it
-  as a fact. The operator approves it; do not claim it is saved unless the tool says so.
-Passage numbers restart at each search; cite them as [search.passage], e.g. [1.2]."""
-)
-
-
 class Agent:
-    def __init__(self, rag: RAG, model: str = MODEL):
+    def __init__(self, rag: RAG, model: str = CLAUDE_MODEL):
         self.rag, self.model, self.propose = rag, model, reject
         self.client = anthropic.Anthropic()
         self.searches, self.events = 0, []  # events: tool results, shown as steps
@@ -94,7 +82,7 @@ class Agent:
             messages=messages,
             max_iterations=8,
             output_config={"effort": "medium"},
-            betas=["server-side-fallback-2026-07-01"],
+            betas=list(AGENT_BETAS),
             fallbacks="default",
             stream=True,
         )
@@ -125,7 +113,7 @@ def describe(tool: str, args: dict) -> str:
 def answerer(rag: RAG, provider: str | None = None, model: str | None = None) -> Answer:
     """Claude runs the agent loop; local models run the fixed RAG pipeline (too small for reliable tool use)."""
     if (provider or os.environ.get("HCI_PROVIDER")) == "anthropic":
-        print(f"Model: {model or MODEL} (Anthropic, agent mode)", file=sys.stderr)
-        return Agent(rag, model or MODEL).answer
+        print(f"Model: {model or CLAUDE_MODEL} (Anthropic, agent mode)", file=sys.stderr)
+        return Agent(rag, model or CLAUDE_MODEL).answer
     gen = llm.load(provider, model)
     return lambda question, scenario=None, history=(), propose=reject: rag.answer(question, gen, scenario, history)

@@ -8,10 +8,10 @@ from collections.abc import Callable, Collection
 
 import numpy as np
 
+from hci.constants import BM25_B, BM25_K1, QUERY_PREFIX, RRF_K
 from hci.corpus import Chunk
 
 EMBED_MODEL = os.environ.get("HCI_EMBED_MODEL", "BAAI/bge-small-en-v1.5")
-QUERY_PREFIX = "Represent this sentence for searching relevant passages: "  # bge query instruction
 
 Embed = Callable[[list[str]], np.ndarray]  # texts -> L2-normalised (n, d)
 
@@ -38,7 +38,7 @@ class Index:
         self.lens = np.array([sum(d.values()) for d in self.docs])
         self.df = Counter(t for d in self.docs for t in d)
 
-    def bm25(self, query: str, k1: float = 1.5, b: float = 0.75) -> np.ndarray:
+    def bm25(self, query: str, k1: float = BM25_K1, b: float = BM25_B) -> np.ndarray:
         n, avg = len(self.docs), self.lens.mean()
         scores = np.zeros(n)
         for t in set(tokenize(query)):
@@ -53,6 +53,6 @@ class Index:
         dense = self.vecs @ self.embed([QUERY_PREFIX + query])[0]
         fused = np.zeros(len(self.chunks))
         for scores in (dense, self.bm25(query)):
-            fused[np.argsort(-scores)] += 1 / (60 + np.arange(1, len(scores) + 1))
+            fused[np.argsort(-scores)] += 1 / (RRF_K + np.arange(1, len(scores) + 1))
         ranked = (self.chunks[i] for i in np.argsort(-fused))
         return [c for c in ranked if c.id not in skip][:k]

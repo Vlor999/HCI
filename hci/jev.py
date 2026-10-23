@@ -8,9 +8,9 @@ import os
 
 import httpx
 
+from hci.constants import JEV_ANSWERABLE_QUESTION, JEV_PASSAGE_QUESTION, JEV_URL
 from hci.corpus import Chunk
 
-URL = "https://api.typesafe.ai/v1/systemone"
 MODEL = os.environ.get("HCI_JEV_MODEL", "jev-latest")
 KEEP = float(os.environ.get("HCI_JEV_KEEP", "0.5"))  # min P(relevant) to keep a passage
 ANSWERABLE = float(os.environ.get("HCI_JEV_ANSWERABLE", "0.3"))  # tune on questions absent from the docs
@@ -22,12 +22,11 @@ def enabled() -> bool:
 
 def request(question: str, chunks: list[Chunk]) -> dict:
     questions = {
-        f"p{i}": {"type": "noul", "instructions": f"Does `passages.p{i}` help answer `query`?"}
-        for i in range(len(chunks))
+        f"p{i}": {"type": "noul", "instructions": JEV_PASSAGE_QUESTION.format(key=f"p{i}")} for i in range(len(chunks))
     }
     questions["answerable"] = {
         "type": "noul",
-        "instructions": "Taken together, do `passages` contain enough information to answer `query`?",
+        "instructions": JEV_ANSWERABLE_QUESTION,
     }
     return {
         "model": MODEL,
@@ -44,7 +43,7 @@ def parse(answers: dict, chunks: list[Chunk]) -> tuple[set[str], bool]:
 
 def judge(question: str, chunks: list[Chunk]) -> tuple[set[str], bool]:
     r = httpx.post(
-        URL,
+        JEV_URL,
         json=request(question, chunks),
         headers={"Authorization": f"Bearer {os.environ['TYPESAFE_API_KEY']}"},
         timeout=10,

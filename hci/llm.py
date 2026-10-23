@@ -4,16 +4,12 @@ import os
 import sys
 from collections.abc import Callable, Iterator
 
+from hci.constants import LOCAL_MODELS
 from hci.device import backend, torch_device
 
 Generate = Callable[[str, str], Iterator[str]]
 
 MAX_TOKENS = 1024
-DEFAULTS = {
-    "mlx": "mlx-community/Qwen3-4B-4bit",
-    "cuda": "Qwen/Qwen3-4B",
-    "cpu": "Qwen/Qwen3-0.6B",
-}
 
 
 def messages(system: str, user: str) -> list[dict]:
@@ -59,6 +55,6 @@ def hf(name: str) -> Generate:
 def load(provider: str | None = None, model: str | None = None) -> Generate:
     """provider: mlx | cuda | cpu. Defaults to the fastest local backend. Claude goes through hci.agent."""
     provider = provider or os.environ.get("HCI_PROVIDER") or backend()
-    name = model or os.environ.get("HCI_MODEL") or DEFAULTS[provider]
+    name = model or os.environ.get("HCI_MODEL") or LOCAL_MODELS[provider]
     print(f"Model: {name} (local, {provider})", file=sys.stderr)
     return mlx(name) if provider == "mlx" else hf(name)

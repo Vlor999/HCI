@@ -3,27 +3,27 @@
 import json
 import re
 from dataclasses import dataclass
-from pathlib import Path
 
-DATA = Path(__file__).resolve().parent.parent / "data"
-FACTS = DATA / "facts.json"
+from hci.constants import CORRECTIONS_DIR, DATA_DIR, EXPLANATIONS_FILE, FACTS_FILE, MANUAL_FILE, PATHS_FILE, Source
+
+FACTS = FACTS_FILE
 
 
 @dataclass(frozen=True)
 class Chunk:
     id: str
     text: str
-    source: str  # path | manual | correction | example | fact
+    source: Source
     scenario: int | None = None
 
 
 def stamp() -> float:
     """Latest change in data/, so a running server picks up edits made elsewhere."""
-    return max(f.stat().st_mtime for f in DATA.rglob("*") if f.is_file())
+    return max(f.stat().st_mtime for f in DATA_DIR.rglob("*") if f.is_file())
 
 
 def scenarios() -> list[dict]:
-    return json.loads((DATA / "paths.json").read_text())
+    return json.loads(PATHS_FILE.read_text())
 
 
 def step_text(desc: str, s: dict) -> str:
@@ -58,16 +58,16 @@ def add_fact(text: str, scenario: int | None) -> None:
 
 def load() -> list[Chunk]:
     chunks = [
-        Chunk(f"path-{i}-{s['location']}", step_text(sc.get("description", f"#{i}"), s), "path", i)
+        Chunk(f"path-{i}-{s['location']}", step_text(sc.get("description", f"#{i}"), s), Source.PATH, i)
         for i, sc in enumerate(scenarios())
         for s in sc["steps"]
     ]
 
-    manual = (DATA / "documents" / "sample_manual.md").read_text()
+    manual = MANUAL_FILE.read_text()
     for n, section in enumerate(re.split(r"\n(?=\d+\. )", manual.strip())):
-        chunks.append(Chunk(f"manual-{n + 1}", "Robot manual. " + " ".join(section.split()), "manual"))
+        chunks.append(Chunk(f"manual-{n + 1}", "Robot manual. " + " ".join(section.split()), Source.MANUAL))
 
-    for f in sorted((DATA / "corrections").glob("*.md")):
+    for f in sorted(CORRECTIONS_DIR.glob("*.md")):
         text = f.read_text()
         q = re.search(r"^### Q\d+: (.+)$", text, re.MULTILINE)
         sol = re.split(r"^### correct solution\s*$", text, flags=re.MULTILINE | re.IGNORECASE)
@@ -75,12 +75,12 @@ def load() -> list[Chunk]:
             question = f"Question: {q[1]} " if q else ""
             body = " ".join(sol[1].split())
             chunks.append(
-                Chunk(f"correction-{f.stem}", f"Past mistake. {question}Expected answer: {body}", "correction")
+                Chunk(f"correction-{f.stem}", f"Past mistake. {question}Expected answer: {body}", Source.CORRECTION)
             )
 
-    for n, ex in enumerate(json.loads((DATA / "explanations" / "sample_explanations.json").read_text())):
-        chunks.append(Chunk(f"example-{n}", f"Example explanation. Q: {ex['Input']} A: {ex['Output']}", "example"))
+    for n, ex in enumerate(json.loads(EXPLANATIONS_FILE.read_text())):
+        chunks.append(Chunk(f"example-{n}", f"Example explanation. Q: {ex['Input']} A: {ex['Output']}", Source.EXAMPLE))
 
     for n, fact in enumerate(load_facts()):
-        chunks.append(Chunk(f"fact-{n}", f"Operator update: {fact['text']}", "fact", fact.get("scenario")))
+        chunks.append(Chunk(f"fact-{n}", f"Operator update: {fact['text']}", Source.FACT, fact.get("scenario")))
     return chunks

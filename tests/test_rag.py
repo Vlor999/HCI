@@ -3,8 +3,9 @@ import json
 import numpy as np
 
 from hci import corpus, jev
+from hci.constants import NOT_FOUND
 from hci.index import Index, tokenize
-from hci.rag import NOT_FOUND, RAG, text_only
+from hci.rag import RAG, text_only
 
 
 def fake_embed(texts):
