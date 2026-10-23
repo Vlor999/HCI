@@ -19,7 +19,7 @@ dependencies = [
 hci = "hci.cli:main"
 
 [dependency-groups]
-dev = ["pytest", "ruff"]
+dev = ["pytest", "ruff", "jsonschema"]
 
 [build-system]
 requires = ["hatchling"]

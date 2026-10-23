@@ -71,11 +71,30 @@ All API calls need the token. Set `HCI_TOKEN` to keep it the same across restart
 
 The index is rebuilt in memory at startup. There are only a few dozen chunks, so a vector database isn't needed yet.
 
-## Test
+## Test and evaluate
 
 ```sh
-uv run pytest
+uv run pytest                 # unit test + every case in tests/cases/*.json (retrieval only, no LLM)
+uv run hci eval               # same cases end to end with the LLM: JSON report of quality and latency
+uv run hci -p anthropic eval  # same, on Claude
 ```
+
+Each file in `tests/cases/` is a JSON list of cases. The format is defined in `tests/cases/schema.json`, and pytest
+validates every file against it. A case gives a question, an optional scenario, history and facts, and what to expect:
+chunk ids that must or must not be in the context, chunks that must come first, and words the answer must contain
+or must not contain. `xfail` marks a known weakness, and the case still runs.
+
+`hci eval` on an M4 Pro (MLX, Qwen3-4B 4-bit, 45 cases):
+
+| Metric | Value |
+| --- | --- |
+| Retrieval pass rate | 71 % (13 known weaknesses marked `xfail`) |
+| Recall of expected chunks | 66 % |
+| Answer pass rate | 86 % |
+| Retrieval latency (p50) | 7 ms |
+| First token (p50) | 1.3 s |
+| Generation | 84 tokens/s |
+| Model load | 0.6 s LLM + 2.4 s embedder |
 
 The report and slides are in `doc/robot-explain-yourself/`. The first version (Ollama, no retrieval) is in the git
 history.

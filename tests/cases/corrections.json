@@ -1,0 +1,14 @@
+[
+  {"id": "correction-two-paths-to-win", "tags": ["corrections"], "question": "Which two paths do I need to pick to win the race?", "scenario": 0,
+   "expect": {"retrieved": ["correction-correction_1"], "answer_contains": ["C", "A"]}},
+  {"id": "correction-sort-by-time", "tags": ["corrections", "arithmetic"], "question": "Sort the paths by the time each takes.", "scenario": 0,
+   "expect": {"retrieved": ["correction-correction_2"], "answer_contains": ["5.4", "6.0", "7.2"]}},
+  {"id": "correction-travel-time-b", "tags": ["corrections", "arithmetic"], "question": "How long does path B take, using t = d / v?", "scenario": 0,
+   "expect": {"retrieved": ["correction-correction_2"], "answer_contains": ["7.2"]}},
+  {"id": "correction-win-without-scenario", "tags": ["corrections"], "question": "What is the quickest way to come first in the competition?", "scenario": null,
+   "expect": {"retrieved": ["correction-correction_1"]}},
+  {"id": "correction-other-scenario-race", "tags": ["corrections", "arithmetic"], "question": "Which path should I take first to finish the race first?", "scenario": 1,
+   "expect": {"first": ["path-1-Y", "path-1-Z"], "retrieved": ["correction-correction_1"], "answer_contains": ["5.0"]}},
+  {"id": "correction-paraphrased-race", "tags": ["corrections"], "question": "I want the best finishing position: what sequence of routes?", "scenario": 0,
+   "expect": {"retrieved": ["correction-correction_1"]}}
+]

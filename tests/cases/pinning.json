@@ -1,0 +1,10 @@
+[
+  {"id": "pin-heavy-load-fastest", "tags": ["pinning", "arithmetic"], "question": "Which path is quicker?", "scenario": 1, "expect": {"first": ["path-1-Y", "path-1-Z"], "answer_contains": ["Y", "5.0"]}},
+  {"id": "pin-winter-order", "tags": ["pinning", "arithmetic"], "question": "Rank the paths from fastest to slowest.", "scenario": 2, "expect": {"first": ["path-2-P", "path-2-Q", "path-2-R"], "answer_contains": ["6.0", "6.4", "7.5"]}},
+  {"id": "pin-default-not-winter", "tags": ["pinning"], "description": "Snow wording must not pull winter steps ahead of the requested scenario.", "question": "Is any path covered in snow and ice?", "scenario": 0, "expect": {"first": ["path-0-A", "path-0-B", "path-0-C"]}},
+  {"id": "pin-heavy-load-ignores-other-letters", "tags": ["pinning"], "question": "Why not take path C here?", "scenario": 1, "expect": {"first": ["path-1-Y", "path-1-Z"]}},
+  {"id": "pin-winter-other-scenarios-absent", "tags": ["pinning"], "question": "Where did the robot switch to its winter navigation protocol?", "scenario": 2, "expect": {"first": ["path-2-P", "path-2-Q", "path-2-R"], "not_retrieved": ["path-0-A", "path-0-B", "path-0-C", "path-1-Y", "path-1-Z"], "answer_contains": ["P"]}, "xfail": "search hits are not filtered by scenario: other scenarios' steps leak in"},
+  {"id": "pin-heavy-load-other-scenarios-absent", "tags": ["pinning"], "question": "Which path required the suspension system?", "scenario": 1, "expect": {"first": ["path-1-Y", "path-1-Z"], "not_retrieved": ["path-0-A", "path-0-B", "path-0-C", "path-2-P", "path-2-Q", "path-2-R"], "answer_contains": ["Z"]}, "xfail": "search hits are not filtered by scenario: other scenarios' steps leak in"},
+  {"id": "pin-no-scenario-no-steps-first", "tags": ["pinning"], "question": "How does the robot save energy?", "scenario": null, "expect": {"retrieved": ["manual-1"], "not_retrieved": ["path-0-A", "path-1-Y", "path-2-P"]}},
+  {"id": "pin-default-lowest-energy", "tags": ["pinning"], "question": "Which path uses the least energy?", "scenario": 0, "expect": {"first": ["path-0-A", "path-0-B", "path-0-C"], "answer_contains": ["C"]}}
+]

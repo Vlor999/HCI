@@ -12,6 +12,9 @@ def main() -> None:
     sub.add_parser("ask").add_argument("question")
     sub.add_parser("chat")
     sub.add_parser("fact").add_argument("text")
+    sub.add_parser("eval", help="run tests/cases end to end, print a JSON report").add_argument(
+        "--no-answers", action="store_true", help="retrieval only, no LLM"
+    )
     serve = sub.add_parser("serve", help="HTTP API + phone web app")
     serve.add_argument("--host", default="0.0.0.0")
     serve.add_argument("--port", type=int, default=8000)
@@ -21,6 +24,12 @@ def main() -> None:
         from hci.server import run
 
         return run(a.host, a.port)
+    if a.cmd == "eval":
+        import json
+
+        from hci.evaluate import run
+
+        return print(json.dumps(run(a.provider, a.model, not a.no_answers), indent=2))
     if a.cmd == "fact":
         return corpus.add_fact(a.text, a.scenario)
 

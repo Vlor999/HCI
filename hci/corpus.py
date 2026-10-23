@@ -17,6 +17,11 @@ class Chunk:
     scenario: int | None = None
 
 
+def stamp() -> float:
+    """Latest change in data/, so a running server picks up edits made elsewhere."""
+    return max(f.stat().st_mtime for f in DATA.rglob("*") if f.is_file())
+
+
 def scenarios() -> list[dict]:
     return json.loads((DATA / "paths.json").read_text())
 
@@ -66,10 +71,11 @@ def load() -> list[Chunk]:
         text = f.read_text()
         q = re.search(r"^### Q\d+: (.+)$", text, re.MULTILINE)
         sol = re.split(r"^### correct solution\s*$", text, flags=re.MULTILINE | re.IGNORECASE)
-        if q and len(sol) == 2:
+        if len(sol) == 2:
+            question = f"Question: {q[1]} " if q else ""
             body = " ".join(sol[1].split())
             chunks.append(
-                Chunk(f"correction-{f.stem}", f"Past mistake. Question: {q[1]} Expected answer: {body}", "correction")
+                Chunk(f"correction-{f.stem}", f"Past mistake. {question}Expected answer: {body}", "correction")
             )
 
     for n, ex in enumerate(json.loads((DATA / "explanations" / "sample_explanations.json").read_text())):

@@ -11,8 +11,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
-      # tests use a fake embedder and generator: no torch or model download needed
       - run: uvx ruff check hci tests
-      - run: uv run --no-project -p 3.12 --with numpy --with httpx --with pytest pytest -q
+      # no LLM needed; the JSON cases use the real embedder on CPU torch
+      - run: >
+          uv run --no-project -p 3.12 --index https://download.pytorch.org/whl/cpu --index-strategy unsafe-best-match
+          --with torch --with sentence-transformers --with httpx --with jsonschema --with pytest pytest -q
         env:
           PYTHONPATH: .

@@ -1,0 +1,13 @@
+[
+  {
+    "id": "fastest-order-pins-scenario",
+    "tags": ["pinning", "arithmetic"],
+    "question": "In which order should I take the paths to finish the race first?",
+    "scenario": 0,
+    "expect": {
+      "first": ["path-0-A", "path-0-B", "path-0-C"],
+      "retrieved": ["correction-correction_1"],
+      "answer_contains": ["C"]
+    }
+  }
+]
