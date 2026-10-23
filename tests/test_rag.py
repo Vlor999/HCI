@@ -58,12 +58,12 @@ def test_rag(tmp_path, monkeypatch):
 
 
 def test_agent_tools(tmp_path, monkeypatch):
-    from hci.agent import ClaudeMemoryAgent
+    from hci.agent import AgentRun
 
     monkeypatch.setenv("HCI_FACTS_FILE", str(tmp_path / "facts.json"))
     get_settings.cache_clear()
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test")
-    agent = ClaudeMemoryAgent(ExplanationPipeline(embed=fake_embed, judge=False))
+    agent = AgentRun(ExplanationPipeline(embed=fake_embed, judge=False))
     tools = {t.name: t for t in agent.tools}
     assert set(tools) == {"query_context", "add_context", "list_scenarios"}
 
