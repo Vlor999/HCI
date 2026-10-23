@@ -149,8 +149,11 @@ message saying what to fix.
 make check-all                # format, lint, ty, pytest (unit tests + every JSON case)
 uv run hci eval               # cases end to end with the LLM: JSON report of quality and latency
 uv run hci eval --no-answers  # retrieval only, no LLM
+uv run hci eval --jev         # filter retrieval with the Jev judge (paid, needs TYPESAFE_API_KEY)
 uv run hci -p anthropic eval  # same, on Claude
 ```
+
+Without `--jev`, eval never calls Jev, even when the key is set; `ask`, `chat` and `serve` do use it.
 
 Cases live in `tests/cases/*.json` and follow `tests/cases/schema.json`: a question, optional scenario, history and
 facts, and what to expect (chunk ids that must or must not be retrieved, which chunk comes first, words the answer
