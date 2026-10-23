@@ -6,7 +6,6 @@ into paragraphs, then the paragraphs' sentences are packed into chunks of at mos
 a sentence is only cut when it is longer than a chunk on its own.
 """
 
-import re
 import shutil
 import subprocess
 import tempfile
@@ -19,13 +18,19 @@ from loguru import logger
 from pypdf import PdfReader
 
 from hci.config import get_settings
-from hci.constants import DOCUMENT_EXTENSIONS, PAGES_EXPORT_SCRIPT, ROOT_DIR, UPLOADS_DIRNAME, Source
+from hci.constants import (
+    DOCUMENT_EXTENSIONS,
+    MARKDOWN_HEADING,
+    PAGES_EXPORT_SCRIPT,
+    PARAGRAPH_BREAK,
+    PATH_SEPARATORS,
+    ROOT_DIR,
+    SENTENCE_END,
+    UNSAFE_NAME_CHARS,
+    UPLOADS_DIRNAME,
+    Source,
+)
 from hci.types import DocumentSection, RecordChunk
-
-HEADING = re.compile(r"^(#{1,6})\s+(.+?)\s*#*\s*$")  # ATX Markdown heading
-SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
-PARAGRAPH_BREAK = re.compile(r"\n\s*\n")
-UNSAFE_NAME_CHARS = re.compile(r"[^\w.-]+")
 
 
 def file_ref(path: Path) -> str:
@@ -66,7 +71,7 @@ def safe_name(filename: str) -> str:
     Returns:
         The base name, possibly empty.
     """
-    base = re.split(r"[\\/]", filename)[-1]
+    base = PATH_SEPARATORS.split(filename)[-1]
     return UNSAFE_NAME_CHARS.sub("_", base).lstrip(".")
 
 
@@ -114,9 +119,8 @@ def load_document(path: Path) -> list[RecordChunk]:
     """
     try:
         sections = PARSERS[path.suffix.lower()](path)
-    except (
-        Exception
-    ) as e:  # pypdf and python-docx raise many types on malformed files; one bad file never stops the index
+    # pypdf and python-docx raise many types on malformed files; one bad file never stops the index
+    except Exception as e:
         logger.warning("Skipping document {}: cannot parse it ({})", path, e)
         return []
     settings = get_settings()
@@ -198,7 +202,7 @@ def _sections(blocks: Iterable[tuple[int, str]]) -> list[DocumentSection]:
 def _markdown_blocks(text: str) -> Iterable[tuple[int, str]]:
     # ponytail: a `#` line inside a code fence reads as a heading; track fences if code-heavy docs show up
     for line in text.splitlines():
-        m = HEADING.match(line)
+        m = MARKDOWN_HEADING.match(line)
         yield (len(m[1]), m[2]) if m else (0, line)
 
 

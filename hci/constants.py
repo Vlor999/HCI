@@ -1,5 +1,6 @@
 """Immutable values shared across the package: prompts, markers, model ids, URLs, paths, labels."""
 
+import re
 from enum import StrEnum
 from pathlib import Path
 
@@ -72,6 +73,11 @@ RRF_K = 60  # reciprocal rank fusion constant
 # --- Documents ---------------------------------------------------------------
 
 DOCUMENT_EXTENSIONS = (".md", ".txt", ".pdf", ".docx", ".pages")  # one parser each in hci/documents.py
+MARKDOWN_HEADING = re.compile(r"^(#{1,6})\s+(.+?)\s*#*\s*$")  # ATX heading: level, title
+SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
+PARAGRAPH_BREAK = re.compile(r"\n\s*\n")
+PATH_SEPARATORS = re.compile(r"[\\/]")  # POSIX and Windows, for client file names
+UNSAFE_NAME_CHARS = re.compile(r"[^\w.-]+")
 UPLOADS_DIRNAME = "uploads"  # subfolder of the documents dir that phone uploads go to
 # Exports a .pages file to PDF through the Pages app; paths come as arguments, never spliced into the script.
 PAGES_EXPORT_SCRIPT = """on run argv

@@ -55,7 +55,7 @@ class Settings(BaseSettings):
     )
     max_upload_mb: float = Field(default=20, gt=0, description="Largest document the phone can upload, in MB.")
     pages_export_timeout: float = Field(
-        default=60, description="Seconds allowed for the Pages app to export a .pages file to PDF."
+        default=60, gt=0, description="Seconds allowed for the Pages app to export a .pages file to PDF."
     )
 
     # --- agent/server ---
