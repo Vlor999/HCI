@@ -22,6 +22,7 @@ def load_cases(cases_dir: Path = CASES_DIR) -> list[dict]:
 
     Args:
         cases_dir: Directory holding the `*.json` case files.
+        judge: Filter retrieval with the Jev judge (needs `TYPESAFE_API_KEY`, paid calls).
 
     Returns:
         The cases, file by file in name order.
@@ -129,7 +130,9 @@ def _report(
     )
 
 
-def run(provider: str | None, model: str | None, answers: bool = True, cases_dir: Path = CASES_DIR) -> dict:
+def run(
+    provider: str | None, model: str | None, answers: bool = True, cases_dir: Path = CASES_DIR, judge: bool = False
+) -> dict:
     """Runs every case end to end and reports quality and latency.
 
     Args:
@@ -137,6 +140,7 @@ def run(provider: str | None, model: str | None, answers: bool = True, cases_dir
         model: Model name or path; None uses the provider default.
         answers: Whether to generate and check answers (slow), or only retrieval.
         cases_dir: Directory holding the `*.json` case files.
+        judge: Filter retrieval with the Jev judge (needs `TYPESAFE_API_KEY`, paid calls).
 
     Returns:
         The `EvalReport` as a JSON-ready dict.
@@ -144,7 +148,7 @@ def run(provider: str | None, model: str | None, answers: bool = True, cases_dir
     t0 = time.perf_counter()
     embed = default_embedder()
     load_embed = time.perf_counter() - t0
-    rag = ExplanationPipeline(embed=embed, judge=False)
+    rag = ExplanationPipeline(embed=embed, judge=judge)
     t0 = time.perf_counter()
     answer = answerer(rag, provider, model) if answers else None
     load_llm = time.perf_counter() - t0

@@ -200,7 +200,7 @@ def _fact(args: argparse.Namespace) -> None:
 
 def _eval(args: argparse.Namespace) -> None:
     """`hci eval`: run the cases end to end, print the JSON report."""
-    print(json.dumps(evaluate.run(args.provider, args.model, not args.no_answers), indent=2))
+    print(json.dumps(evaluate.run(args.provider, args.model, not args.no_answers, judge=args.jev), indent=2))
 
 
 def _serve(args: argparse.Namespace) -> None:
@@ -231,9 +231,9 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("ask", help="answer one question").add_argument("question")
     sub.add_parser("chat", help="interactive conversation")
     sub.add_parser("fact", help="save an operator update").add_argument("text")
-    sub.add_parser("eval", help="run tests/cases end to end, print a JSON report").add_argument(
-        "--no-answers", action="store_true", help="retrieval only, no LLM"
-    )
+    evaluation = sub.add_parser("eval", help="run tests/cases end to end, print a JSON report")
+    evaluation.add_argument("--no-answers", action="store_true", help="retrieval only, no LLM")
+    evaluation.add_argument("--jev", action="store_true", help="filter retrieval with the Jev judge (paid)")
     serve = sub.add_parser("serve", help="HTTP API + phone web app")
     serve.add_argument("--host", default=get_settings().host)
     serve.add_argument("--port", type=int, default=get_settings().port)
