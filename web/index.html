@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0f1a14">
+<title>Robot Explainer</title>
+<style>
+  :root { --bg: #f6f7f4; --fg: #17201a; --muted: #5d6a61; --card: #fff; --line: #d9ded8; --accent: #2f7d4f; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0f1a14; --fg: #e6ece7; --muted: #9aa89e; --card: #18251d; --line: #2a3a30; --accent: #5cc58a; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.5 -apple-system, system-ui, sans-serif;
+         padding: env(safe-area-inset-top) 16px calc(env(safe-area-inset-bottom) + 16px); }
+  h1 { font-size: 1.25rem; margin: 16px 0 8px; }
+  .row { display: flex; gap: 8px; }
+  select, textarea, button { font: inherit; color: inherit; background: var(--card); border: 1px solid var(--line);
+                             border-radius: 10px; padding: 10px; width: 100%; }
+  button { background: var(--accent); color: #fff; border: 0; font-weight: 600; }
+  button.ghost { background: transparent; color: var(--accent); border: 1px solid var(--line); }
+  button:disabled { opacity: .5; }
+  #log { margin: 16px 0; display: flex; flex-direction: column; gap: 12px; }
+  .q { font-weight: 600; }
+  .a { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; white-space: pre-wrap; }
+  .err { color: #c0392b; }
+  small { color: var(--muted); }
+</style>
+</head>
+<body>
+<h1>Robot Explainer</h1>
+<div class="row">
+  <select id="scenario" aria-label="Scenario"></select>
+  <select id="provider" aria-label="Model"></select>
+</div>
+<div id="log"></div>
+<textarea id="q" rows="3" placeholder="Why did you avoid path A?"></textarea>
+<div class="row" style="margin-top:8px">
+  <button id="ask">Ask</button>
+  <button id="fact" class="ghost">Save as fact</button>
+</div>
+<p><small id="status"></small></p>
+<script>
+  if (location.hash.length > 1) {
+    try { localStorage.setItem("token", location.hash.slice(1)); } catch {}
+    history.replaceState(null, "", location.pathname);
+  }
+  let token = ""; try { token = localStorage.getItem("token") || ""; } catch {}
+  const $ = id => document.getElementById(id), turns = [];
+  const headers = { "Authorization": "Bearer " + token, "Content-Type": "application/json" };
+  const scenario = () => $("scenario").value === "" ? null : Number($("scenario").value);
+
+  fetch("/api/info", { headers }).then(r => r.ok ? r.json() : Promise.reject(r.status)).then(info => {
+    $("scenario").add(new Option("No current scenario", ""));
+    info.scenarios.forEach((d, i) => $("scenario").add(new Option(`${i}: ${d}`, i)));
+    info.providers.forEach(p => $("provider").add(new Option(p, p)));
+  }).catch(e => $("status").textContent = e === 401 ? "Open the link printed by `hci serve`." : "Server unreachable.");
+
+  $("ask").onclick = async () => {
+    const question = $("q").value.trim(); if (!question) return;
+    $("ask").disabled = true; $("q").value = "";
+    const a = document.createElement("div"); a.className = "a";
+    const q = document.createElement("div"); q.className = "q"; q.textContent = question;
+    $("log").append(q, a);
+    try {
+      const r = await fetch("/api/ask", { method: "POST", headers, body: JSON.stringify(
+        { question, scenario: scenario(), provider: $("provider").value, history: turns.slice(-3) }) });
+      if (!r.ok) throw new Error(await r.text());
+      const reader = r.body.getReader(), dec = new TextDecoder();
+      for (let c; !(c = await reader.read()).done;) { a.textContent += dec.decode(c.value, { stream: true }); a.scrollIntoView({ block: "end" }); }
+      turns.push([question, a.textContent]);
+    } catch (e) { a.classList.add("err"); a.textContent = String(e.message || e); }
+    $("ask").disabled = false;
+  };
+
+  $("fact").onclick = async () => {
+    const text = $("q").value.trim(); if (!text) return;
+    const r = await fetch("/api/facts", { method: "POST", headers, body: JSON.stringify({ text, scenario: scenario() }) });
+    $("status").textContent = r.ok ? "Fact saved." : "Could not save fact.";
+    if (r.ok) $("q").value = "";
+  };
+</script>
+</body>
+</html>

@@ -1,15 +1,29 @@
-# pyproject.toml
-[tool.black]
-line-length = 120
-target-version = ["py311"]
-
-[tool.mypy]
-python_version = "3.11"
-strict = true
-ignore_missing_imports = true
-exclude = [
-    "tests/",
-    "evaluation/"
+[project]
+name = "hci"
+version = "2.0.0"
+description = "RAG that explains a robot's navigation choices from its past paths"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+    "numpy",
+    "torch",
+    "transformers",
+    "sentence-transformers>=5",
+    "anthropic",
+    "httpx",
+    "fastapi",
+    "uvicorn",
+    "mlx-lm; sys_platform == 'darwin' and platform_machine == 'arm64'",
 ]
 
-plugins = []
+[project.scripts]
+hci = "hci.cli:main"
+
+[dependency-groups]
+dev = ["pytest", "ruff"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 120
