@@ -75,7 +75,7 @@ class AgentRun:
         self.tools = [beta_tool(self.query_context), beta_tool(self.add_context), beta_tool(list_scenarios)]
 
     def query_context(self, query: str, scenario: int | None = None) -> str:
-        """Search the robot's records: past paths, operating manual, past corrections, operator facts.
+        """Search the robot's records: past paths, documents (manual, reports), past corrections, operator facts.
 
         Args:
             query: what to look for, in plain words.
