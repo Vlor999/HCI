@@ -186,16 +186,19 @@ chunk), chunks that must come first, and words the answer must all contain, at l
 must refuse (it contains one of the refusal markers of `hci/constants.py`), and with `--jev` retrieval passes when Jev
 refuses rather than on the pinned chunks. `xfail` marks a known weakness, and the case still runs.
 
-`hci eval` on an M4 Pro (MLX, 45 cases):
+`hci eval` on an M4 Pro (45 cases, 21 with answer checks):
 
-| Metric | Qwen3-4B (default) | Gemma 4 E4B (tested, not kept) |
-| --- | --- | --- |
-| Retrieval pass rate | 84 % (7 paraphrase misses marked `xfail`) | same |
-| Recall of expected chunks | 74 % | same |
-| Answer pass rate | 95 % | 81 % (before the Markdown prompt) |
-| Retrieval latency (p50) | 7 ms | 6 ms |
-| First token (p50) | 1.25 s | 0.8 s |
-| Generation | 85 tokens/s | 67 tokens/s |
+| Metric | Qwen3-4B (MLX, default) | Claude (`-p anthropic`) | Claude + Jev (`-p anthropic eval --jev`) |
+| --- | --- | --- | --- |
+| Retrieval pass rate | 84 % (7 paraphrase misses marked `xfail`) | 84 % | 82 % (84 % with `--no-answers --jev`, one Jev flake) |
+| Recall of expected chunks | 74 % | 74 % | 74 % |
+| Answer pass rate | 95 % | 100 % | 100 % |
+| Retrieval latency (p50) | 7 ms | 8 ms | 236 ms |
+| First token (p50) | 1.5 s | 4.4 s | 4.3 s |
+| Generation | 74 to 85 tokens/s | streamed in chunks | streamed in chunks |
+
+Gemma 4 E4B was tested and not kept: same retrieval, 81 % answers (before the Markdown prompt), 0.8 s first token,
+67 tokens/s.
 
 The report and slides are in `doc/robot-explain-yourself/`. The first version (Ollama, no retrieval) is in the git
 history.
