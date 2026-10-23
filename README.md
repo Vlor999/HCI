@@ -127,7 +127,7 @@ of overlap. A chunk never spans two sections, and starts with its file name and 
 `.pages` export needs macOS with Pages installed (`osascript`); elsewhere export to PDF or DOCX first.
 
 Uploads (`POST /api/documents`) go to `data/documents/uploads/`. Limits: 401 without the token, 411 without
-`Content-Length`, 413 above `HCI_MAX_UPLOAD_MB`, 415 for unsupported types, 422 for files with no extractable text.
+`Content-Length`, 413 above `HCI_MAX_UPLOAD_MB`, 415 for unsupported types, 422 for files with no extractable text, 500 when the file cannot be saved.
 `GET /api/documents` lists documents with chunk counts. Size guards: `HCI_MAX_DOCX_EXPANDED_MB`,
 `HCI_MAX_PDF_PAGES`, `HCI_MAX_DOCUMENT_CHARS`, `HCI_PAGES_EXPORT_TIMEOUT`.
 
