@@ -83,7 +83,7 @@ uv run hci serve              # prints http://<lan-ip>:8000/#<token>
 Open the printed link on a phone on the same Wi-Fi, then use Share → Add to Home Screen. The page streams answers,
 keeps the last turns as history, and saves facts. Answers render as Markdown with Notion-like extras: tables,
 checklists, `> [!NOTE|TIP|IMPORTANT|WARNING|CAUTION]` callouts and `[1.2]` citation badges. The model output is
-sanitized with DOMPurify; marked and DOMPurify are pinned copies in `web/vendor/`, served by `hci serve`, so the page
+sanitized with DOMPurify; marked 15.0.12 and DOMPurify 3.2.6 are pinned copies in `web/vendor/`, served by `hci serve`, so the page
 works offline. For each question you pick where generation runs:
 
 - **on-prem**: the model runs on the machine running `hci serve` (MLX on a Mac, CUDA on a GPU box). Nothing leaves
@@ -97,6 +97,54 @@ for it.
 All API calls need the token. Set `HCI_TOKEN` to keep it the same across restarts. The server speaks plain HTTP: on
 the LAN, the token and answers travel unencrypted. Use a trusted network, or put a TLS reverse proxy (Caddy, nginx) in
 front.
+
+## Metrics and dashboard
+
+Every answer (`hci ask`, `hci chat`, the phone, `hci eval`) appends events to `logs/metrics.jsonl` (git-ignored), one
+JSON object per line. Each line has `kind`, `ts` (epoch seconds), `source` (`cli`, `server`, `eval`) and a
+`request_id` that ties together the events of one answer:
+
+| `kind` | Fields |
+| --- | --- |
+| `request` | provider, model, scenario, `question_chars`, `ttft_ms` (first answer text, steps excluded), `total_ms`, `itl_mean_ms` / `itl_p50_ms` / `itl_p95_ms` / `itl_max_ms` (gaps between streamed text pieces), `output_pieces`, `output_tokens`, `tokens_per_s`, `input_tokens`, Claude `cache_creation_input_tokens` / `cache_read_input_tokens`, `model_ms` / `tool_ms` (Claude), `stop_reason`, `refusal`, `fallback_model`, `error` (class name) |
+| `retrieval` | `latency_ms` (Jev included), `k`, `chunks`, `pinned`, `judged`, `answerable` |
+| `jev` | `latency_ms`, `network_ms` (httpx `elapsed`), `questions`, `passages_kept` / `passages_total`, `answerable_p`, Jev `input_tokens` / `output_tokens`, `model`, `fallback`, `error` |
+| `tool` | agent tool name, `duration_ms`, `ok`, `result_chars`, `passages` (for `query_context`) |
+| `model_turn` | one Claude turn: `duration_ms` (request to final message, tools excluded), usage tokens, `stop_reason`, `fallback_model` |
+
+Token counts are the model's own: MLX `stream_generate` responses, the HF tokenizer on the generated text, Claude's
+`usage` summed over turns (thinking and tool calls included). `tokens_per_s` divides by the text streaming span for
+local models and by `model_ms` for Claude, whose final text can arrive in one burst. Eval events use source `eval`,
+so runs can be compared; the JSON report of `hci eval` is unchanged.
+
+**Privacy**: the question text is not logged, only its length (`HCI_METRICS_LOG_QUESTIONS=true` adds it). Document
+contents, tool inputs and results, API keys and the token are never logged. `HCI_METRICS_ENABLED=false` turns it off.
+The file rotates to `metrics.jsonl.1` at `HCI_METRICS_MAX_MB` (default 10); one backup is kept.
+
+The dashboard polls the log every 3 s: TTFT over time and its distribution per model, inter-token latency p50/p95,
+tokens/s, Claude tokens per request and totals, Jev latency (total and network) and tokens, retrieval latency, tool
+calls, errors and fallbacks, and the last requests. Chart.js 4.5.0 is vendored in `web/vendor/`, so it works offline.
+
+```sh
+uv run hci dashboard --open   # light server on http://127.0.0.1:8790/dashboard: no model, embedder or RAG loaded
+```
+
+It reads only the JSONL file, so it can run while nothing else does, and starts in about 0.3 s. On `127.0.0.1` (the
+default, `HCI_DASHBOARD_HOST`) no token is needed; on any other address `/api/metrics` needs the API token and the
+printed link carries it. `hci serve` also serves `/dashboard`, behind its token (link printed at startup).
+`GET /api/metrics?since=<ts>&limit=<n>` returns the events.
+
+Keep it always on (macOS): `uv run hci dashboard --install` writes the LaunchAgent
+`~/Library/LaunchAgents/io.github.vlor999.hci-dashboard.plist` (runs the venv's `hci-dashboard` at login, restarts it,
+logs to `logs/dashboard.log`) and loads it. `--status` says whether it runs, `--uninstall` stops and removes it. On
+Linux, `--install` prints the equivalent systemd user unit and the commands to enable it.
+
+Plot from the JSONL without the dashboard:
+
+```sh
+jq -r 'select(.kind=="request") | [.ts, .provider, .ttft_ms, .tokens_per_s] | @tsv' logs/metrics.jsonl
+uv run --with pandas python -c "import pandas as pd; d = pd.read_json('logs/metrics.jsonl', lines=True); print(d[d.kind == 'request'].groupby('model').ttft_ms.describe())"
+```
 
 ## Data
 
