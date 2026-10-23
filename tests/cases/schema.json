@@ -36,9 +36,11 @@
           "not_retrieved": { "description": "Chunk ids that must not be in the context.", "type": "array", "items": { "type": "string" } },
           "first": { "description": "Chunk ids that must open the context, in this order.", "type": "array", "items": { "type": "string" } },
           "answer_contains": { "description": "Case-insensitive strings the LLM answer must all contain (hci eval only).", "type": "array", "items": { "type": "string" } },
-          "answer_excludes": { "description": "Case-insensitive strings the LLM answer must not contain (hci eval only).", "type": "array", "items": { "type": "string" } }
+          "answer_contains_any": { "description": "Case-insensitive strings of which the LLM answer must contain at least one (hci eval only). Defaults to the refusal markers (`REFUSAL_MARKERS` in hci/constants.py) for an unanswerable case.", "type": "array", "items": { "type": "string" }, "minItems": 1 },
+          "answer_excludes": { "description": "Case-insensitive strings the LLM answer must not contain (hci eval only). Only strings that prove the model answered, never words a correct refusal restates. Wins over `answer_contains_any`.", "type": "array", "items": { "type": "string" } }
         }
       },
+      "unanswerable": { "description": "The records do not answer the question. The answer must refuse: it contains one of `answer_contains_any`, by default the refusal markers, and none of `answer_excludes`. With the Jev judge on (hci eval --jev), retrieval passes iff Jev refuses (no context); `retrieved`/`not_retrieved`/`first` and recall are skipped, so pinning regressions on these cases show only in runs without the judge; when Jev refuses, the answer (the constant NOT_FOUND) is not scored. With the judge off (pytest, plain hci eval) the retrieval expectations apply as usual.", "const": true },
       "xfail": { "description": "Known failure: the reason. The case still runs and is reported.", "type": "string" }
     }
   }
