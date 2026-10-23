@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "HCI test case file",
+  "description": "A list of RAG test cases. Retrieval checks run in pytest; answer checks run in `hci eval` (needs an LLM). Chunk ids are explicit file references, relative to the repo root: `data/paths.json#<scenario>/<location>` (path step), `data/documents/<file>#<n>` (n-th chunk of a document, from 1; positional, so editing the document renumbers later chunks: re-check cases citing it), `data/corrections/<file>.md` (one chunk per correction), `data/explanations/<file>.json#<index>` (example explanation, from 0), and `fact-<n>` for the case's own facts (the facts file is runtime state outside git). pytest checks that every id names an existing file of the repo (never a git-ignored upload) and a chunk produced by `corpus.load()`.",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["id", "question", "expect"],
+    "properties": {
+      "id": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+      "description": { "type": "string" },
+      "tags": { "type": "array", "items": { "type": "string" } },
+      "question": { "type": "string", "minLength": 1 },
+      "scenario": { "type": ["integer", "null"], "minimum": 0 },
+      "history": {
+        "type": "array",
+        "items": { "type": "array", "prefixItems": [{ "type": "string" }, { "type": "string" }], "minItems": 2, "maxItems": 2 }
+      },
+      "facts": {
+        "description": "Operator updates recorded before the question. They get ids fact-0, fact-1, ... in order.",
+        "type": "array",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["text"],
+          "properties": { "text": { "type": "string" }, "scenario": { "type": ["integer", "null"] } }
+        }
+      },
+      "expect": {
+        "type": "object",
+        "additionalProperties": false,
+        "minProperties": 1,
+        "properties": {
+          "retrieved": { "description": "Chunk ids that must be in the context.", "type": "array", "items": { "type": "string" } },
+          "not_retrieved": { "description": "Chunk ids that must not be in the context.", "type": "array", "items": { "type": "string" } },
+          "first": { "description": "Chunk ids that must open the context, in this order.", "type": "array", "items": { "type": "string" } },
+          "answer_contains": { "description": "Case-insensitive strings the LLM answer must all contain (hci eval only).", "type": "array", "items": { "type": "string" } },
+          "answer_excludes": { "description": "Case-insensitive strings the LLM answer must not contain (hci eval only).", "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "xfail": { "description": "Known failure: the reason. The case still runs and is reported.", "type": "string" }
+    }
+  }
+}

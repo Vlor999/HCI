@@ -1,15 +1,55 @@
-# pyproject.toml
-[tool.black]
-line-length = 120
-target-version = ["py311"]
-
-[tool.mypy]
-python_version = "3.11"
-strict = true
-ignore_missing_imports = true
-exclude = [
-    "tests/",
-    "evaluation/"
+[project]
+name = "hci"
+version = "2.0.0"
+description = "RAG that explains a robot's navigation choices from its past paths"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "numpy",
+    "torch",
+    "transformers",
+    "sentence-transformers>=5",
+    "anthropic",
+    "httpx",
+    "fastapi",
+    "uvicorn",
+    "mlx-lm; sys_platform == 'darwin' and platform_machine == 'arm64'",
+    "prompt-toolkit>=3.0.53",
+    "pydantic>=2.14.1",
+    "pydantic-settings>=2.16.1",
+    "loguru>=0.7.3",
+    "pypdf>=6.21.2",
+    "python-docx>=1.2.0",
+    "python-multipart>=0.0.32",
 ]
 
-plugins = []
+[project.scripts]
+hci = "hci.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "ruff",
+    "jsonschema",
+    "ty>=0.0.91",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--strict-markers"
+markers = ["embedder: loads the real sentence-transformers embedder (downloaded once, then cached)"]
+
+# Linux (CI) installs CPU-only torch; macOS keeps the default PyPI wheels.
+
+[tool.ty.analysis]
+# mlx-lm only installs on Apple Silicon (see dependencies); CI runs on Linux
+allowed-unresolved-imports = ["mlx_lm.**"]
