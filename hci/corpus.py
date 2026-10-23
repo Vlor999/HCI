@@ -22,8 +22,10 @@ def stamp() -> float:
         The newest modification time under `DATA_DIR`, the documents folder or of the facts file, 0.0 when none exists.
     """
     settings = get_settings()
-    found = [*DATA_DIR.rglob("*"), *settings.documents_dir.rglob("*")]
-    files = [f for f in found if f.is_file()] + [settings.facts_file]
+    roots = [DATA_DIR]
+    if not settings.documents_dir.resolve().is_relative_to(DATA_DIR.resolve()):  # the default sits inside data/
+        roots.append(settings.documents_dir)
+    files = [f for root in roots for f in root.rglob("*") if f.is_file()] + [settings.facts_file]
     return max((f.stat().st_mtime for f in files if f.exists()), default=0.0)
 
 

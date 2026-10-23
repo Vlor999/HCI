@@ -79,6 +79,7 @@ PARAGRAPH_BREAK = re.compile(r"\n\s*\n")
 PATH_SEPARATORS = re.compile(r"[\\/]")  # POSIX and Windows, for client file names
 UNSAFE_NAME_CHARS = re.compile(r"[^\w.-]+")
 UPLOADS_DIRNAME = "uploads"  # subfolder of the documents dir that phone uploads go to
+PAGES_HINT = "export it from Pages as PDF or DOCX and add that file instead"
 # Exports a .pages file to PDF through the Pages app; paths come as arguments, never spliced into the script.
 PAGES_EXPORT_SCRIPT = """on run argv
   tell application id "com.apple.Pages"

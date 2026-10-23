@@ -22,6 +22,7 @@ from hci.constants import (
     DOCUMENT_EXTENSIONS,
     MARKDOWN_HEADING,
     PAGES_EXPORT_SCRIPT,
+    PAGES_HINT,
     PARAGRAPH_BREAK,
     PATH_SEPARATORS,
     ROOT_DIR,
@@ -30,7 +31,11 @@ from hci.constants import (
     UPLOADS_DIRNAME,
     Source,
 )
-from hci.types import DocumentSection, RecordChunk
+from hci.types import DocumentSection, ParsedDocument, RecordChunk
+
+# ponytail: process-wide cache, one entry per file, pruned at each full load; chunk settings are read at startup, so
+# changing them means a restart (which empties it)
+_parsed: dict[Path, ParsedDocument] = {}
 
 
 def file_ref(path: Path) -> str:
@@ -100,16 +105,21 @@ def save_upload(name: str, data: bytes) -> Path:
 
 
 def load_documents() -> list[RecordChunk]:
-    """Chunks of every supported file of the documents folder.
+    """Chunks of every supported file of the documents folder; only files changed since the last call are parsed.
 
     Returns:
         The chunks, file by file in path order.
     """
-    return [chunk for path in document_files() for chunk in load_document(path)]
+    files = document_files()
+    for gone in set(_parsed) - set(files):
+        del _parsed[gone]
+    return [chunk for path in files for chunk in load_document(path)]
 
 
 def load_document(path: Path) -> list[RecordChunk]:
-    """Chunks of one document, ids `<file ref>#<n>` counted from 1. A file that fails to parse gives no chunks.
+    """Chunks of one document, ids `<file ref>#<n>` counted from 1, parsed once per version of the file.
+
+    A file that fails to parse gives no chunks, with a warning; see `document_error` for the reason.
 
     Args:
         path: The document, with a supported extension.
@@ -117,12 +127,42 @@ def load_document(path: Path) -> list[RecordChunk]:
     Returns:
         The chunks, each starting with `<file name>, <section or page>: `.
     """
+    return _parsed_document(path).chunks
+
+
+def document_error(path: Path) -> str | None:
+    """Why a document gave no chunks.
+
+    Args:
+        path: The document.
+
+    Returns:
+        The reason, or None when it gave chunks.
+    """
+    return _parsed_document(path).error
+
+
+def _parsed_document(path: Path) -> ParsedDocument:
+    stat = path.stat()
+    version = (stat.st_mtime_ns, stat.st_size)
+    cached = _parsed.get(path)
+    if cached is None or cached.version != version:
+        cached = _parsed[path] = _parse(path, version)
+    return cached
+
+
+def _parse(path: Path, version: tuple[int, int]) -> ParsedDocument:
     try:
-        sections = PARSERS[path.suffix.lower()](path)
+        chunks = _chunks(path)
     # pypdf and python-docx raise many types on malformed files; one bad file never stops the index
     except Exception as e:
-        logger.warning("Skipping document {}: cannot parse it ({})", path, e)
-        return []
+        logger.warning("Skipping document {}: {}", path, e)
+        return ParsedDocument(version, [], str(e) or type(e).__name__)
+    return ParsedDocument(version, chunks, None if chunks else "no text could be read from it")
+
+
+def _chunks(path: Path) -> list[RecordChunk]:
+    sections = PARSERS[path.suffix.lower()](path)
     settings = get_settings()
     bodies = [
         (s.title, body)
@@ -237,7 +277,9 @@ def _pdf_sections(path: Path) -> list[DocumentSection]:
 def _pages_sections(path: Path) -> list[DocumentSection]:
     with tempfile.TemporaryDirectory() as tmp:
         pdf = export_pages(path, Path(tmp) / f"{path.stem}.pdf")
-        return _pdf_sections(pdf) if pdf else []
+        if not pdf:
+            raise ValueError(f"the Pages app could not export it; {PAGES_HINT}")
+        return _pdf_sections(pdf)
 
 
 def export_pages(source: Path, target: Path) -> Path | None:
@@ -250,15 +292,14 @@ def export_pages(source: Path, target: Path) -> Path | None:
     Returns:
         `target`, or None (with a warning) when Pages is not available or the export failed.
     """
-    hint = "export it from Pages as PDF or DOCX and add that file instead"
     if not shutil.which("osascript"):
-        logger.warning("Skipping {}: .pages files need the Pages app on macOS; {}", source, hint)
+        logger.warning("Skipping {}: .pages files need the Pages app on macOS; {}", source, PAGES_HINT)
         return None
     command = ["osascript", "-e", PAGES_EXPORT_SCRIPT, str(source.resolve()), str(target)]
     try:
         subprocess.run(command, check=True, capture_output=True, timeout=get_settings().pages_export_timeout)
     except (OSError, subprocess.SubprocessError) as e:
-        logger.warning("Skipping {}: the Pages app could not export it ({}); {}", source, e, hint)
+        logger.warning("Skipping {}: the Pages app could not export it ({}); {}", source, e, PAGES_HINT)
         return None
     return target
 

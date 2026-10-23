@@ -36,6 +36,21 @@ class DocumentSection:
 
 
 @dataclass(frozen=True)
+class ParsedDocument:
+    """The chunks of one document file at one version, cached until the file changes.
+
+    Attributes:
+        version: `(mtime_ns, size)` of the file when it was parsed.
+        chunks: Its chunks; empty when it could not be read.
+        error: Why it gave no chunks; None when it gave some.
+    """
+
+    version: tuple[int, int]
+    chunks: list[RecordChunk]
+    error: str | None = None
+
+
+@dataclass(frozen=True)
 class Retrieval:
     """Result of a retrieval: the context passages and whether the question can be answered from them."""
 

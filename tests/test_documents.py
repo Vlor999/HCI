@@ -3,7 +3,7 @@
 import subprocess
 from collections.abc import Iterator
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import docx
 import pytest
@@ -14,6 +14,7 @@ from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
 from hci import documents
 from hci.config import get_settings
 from hci.constants import Source
+from hci.types import DocumentSection
 
 
 @pytest.fixture
@@ -237,6 +238,44 @@ class TestLoadDocuments:
         files = documents.document_files()
         # Assert
         assert [f.relative_to(docs_dir).as_posix() for f in files] == ["a.md", "uploads/b.txt"]
+
+
+class TestCache:
+    def test_unchanged_file_is_parsed_once(self, docs_dir: Path):
+        """A second full load reuses the chunks of a file that did not change."""
+        # Arrange
+        (docs_dir / "a.md").write_text("Text.")
+        parser = MagicMock(return_value=[DocumentSection("", ["Text."])])
+        # Act
+        with patch.dict(documents.PARSERS, {".md": parser}):
+            first, second = documents.load_documents(), documents.load_documents()
+        # Assert
+        assert first == second
+        assert parser.call_count == 1
+
+    def test_changed_file_is_parsed_again(self, docs_dir: Path):
+        """Editing a file invalidates its cached chunks."""
+        # Arrange
+        path = docs_dir / "a.md"
+        path.write_text("Old.")
+        documents.load_documents()
+        path.write_text("New text.")
+        # Act
+        texts = [c.text for c in documents.load_documents()]
+        # Assert
+        assert texts == ["a.md: New text."]
+
+    def test_failed_pages_export_is_not_retried(self, docs_dir: Path):
+        """A `.pages` file that Pages cannot export is tried once per version, not at every reload."""
+        # Arrange
+        (docs_dir / "plan.pages").write_bytes(b"zip")
+        # Act
+        with patch("hci.documents.export_pages", return_value=None) as export:
+            documents.load_documents()
+            documents.load_documents()
+        # Assert
+        assert export.call_count == 1
+        assert "PDF or DOCX" in (documents.document_error(docs_dir / "plan.pages") or "")
 
 
 def test_file_ref_is_relative_to_repo_root():
