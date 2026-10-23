@@ -1,7 +1,8 @@
 """Local answer generators. Each one is `(system, user) -> iterator of text chunks`."""
 
-import sys
 from collections.abc import Iterator
+
+from loguru import logger
 
 from hci.config import get_settings
 from hci.constants import LOCAL_MODELS
@@ -55,5 +56,5 @@ def load(provider: str | None = None, model: str | None = None) -> Generate:
     settings = get_settings()
     provider = provider or settings.provider or backend()
     name = model or settings.model or LOCAL_MODELS[provider]
-    print(f"Model: {name} (local, {provider})", file=sys.stderr)
+    logger.info("Model: {} (local, {})", name, provider)
     return mlx(name) if provider == "mlx" else hf(name)

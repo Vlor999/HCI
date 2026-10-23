@@ -4,11 +4,11 @@ The model never writes memory by itself: add_context goes through `propose`, whi
 """
 
 import json
-import sys
 from collections.abc import Iterator, Sequence
 
 import anthropic
 from anthropic import beta_tool
+from loguru import logger
 
 from hci import corpus, llm
 from hci.config import get_settings
@@ -112,7 +112,7 @@ def describe(tool: str, args: dict) -> str:
 def answerer(rag: ExplanationPipeline, provider: str | None = None, model: str | None = None) -> Answer:
     """Claude runs the agent loop; local models run the fixed RAG pipeline (too small for reliable tool use)."""
     if (provider or get_settings().provider) == "anthropic":
-        print(f"Model: {model or get_settings().claude_model} (Anthropic, agent mode)", file=sys.stderr)
+        logger.info("Model: {} (Anthropic, agent mode)", model or get_settings().claude_model)
         return ClaudeMemoryAgent(rag, model).answer
     gen = llm.load(provider, model)
     return lambda question, scenario=None, history=(), propose=reject: rag.answer(question, gen, scenario, history)
