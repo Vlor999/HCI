@@ -4,6 +4,8 @@ A forest robot picks one path among several. This project lets it explain why, i
 records: past paths, the operating manual, reports, past corrections and operator updates. It is a small RAG system,
 local-first: everything runs on your machine with no key. Claude is an optional backend.
 
+![The robot takes path C, explains the order C, A, B with cited travel times, then says it does not know about a flood forecast](doc/demo.gif)
+
 ```mermaid
 flowchart LR
     subgraph sources["Robot records (data/)"]
