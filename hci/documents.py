@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import tempfile
 import unicodedata
+import zipfile
 from collections.abc import Callable, Iterable
 from pathlib import Path
 
@@ -163,6 +164,7 @@ def _parse(path: Path, version: tuple[int, int]) -> ParsedDocument:
 
 def _chunks(path: Path) -> list[RecordChunk]:
     sections = PARSERS[path.suffix.lower()](path)
+    _check_text_size(sum(len(p) for s in sections for p in s.paragraphs))
     settings = get_settings()
     bodies = [
         (s.title, body)
@@ -263,6 +265,7 @@ def _text_sections(path: Path) -> list[DocumentSection]:
 
 
 def _docx_sections(path: Path) -> list[DocumentSection]:
+    _check_docx_size(path)
     paragraphs = docx.Document(str(path)).paragraphs
     # a blank line after each body paragraph keeps DOCX paragraphs apart in `_paragraphs`
     return _sections((_docx_level(p.style.name if p.style else ""), p.text + "\n") for p in paragraphs)
@@ -270,8 +273,32 @@ def _docx_sections(path: Path) -> list[DocumentSection]:
 
 def _pdf_sections(path: Path) -> list[DocumentSection]:
     pages = PdfReader(path).pages
-    sections = [DocumentSection(f"page {n}", _paragraphs(page.extract_text() or "")) for n, page in enumerate(pages, 1)]
+    limit = get_settings().max_pdf_pages
+    if len(pages) > limit:
+        raise ValueError(f"it has {len(pages)} pages, above {limit} (HCI_MAX_PDF_PAGES)")
+    sections, chars = [], 0
+    for n, page in enumerate(pages, 1):
+        text = page.extract_text() or ""
+        chars += len(text)
+        _check_text_size(chars)  # page by page, so a huge PDF stops early
+        sections.append(DocumentSection(f"page {n}", _paragraphs(text)))
     return [s for s in sections if s.paragraphs]
+
+
+def _check_text_size(chars: int) -> None:
+    """Raise when a document has more text than `max_document_chars`, which bounds indexing time and memory."""
+    limit = get_settings().max_document_chars
+    if chars > limit:
+        raise ValueError(f"it has more than {limit} characters of text (HCI_MAX_DOCUMENT_CHARS)")
+
+
+def _check_docx_size(path: Path) -> None:
+    """Raise when the DOCX zip expands above `max_docx_expanded_mb`, before python-docx inflates it (zip bomb)."""
+    with zipfile.ZipFile(path) as archive:
+        size = sum(member.file_size for member in archive.infolist())
+    limit = get_settings().max_docx_expanded_mb
+    if size > limit * 1024 * 1024:
+        raise ValueError(f"it expands to {size / 1024 / 1024:.1f} MB, above {limit:g} MB (HCI_MAX_DOCX_EXPANDED_MB)")
 
 
 def _pages_sections(path: Path) -> list[DocumentSection]:

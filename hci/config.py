@@ -54,6 +54,13 @@ class Settings(BaseSettings):
         default=40, ge=0, description="Words repeated from the end of a chunk at the start of the next, same section."
     )
     max_upload_mb: float = Field(default=20, gt=0, description="Largest document the phone can upload, in MB.")
+    max_docx_expanded_mb: float = Field(
+        default=100, gt=0, description="Largest uncompressed size of a DOCX (a zip), checked before opening it, in MB."
+    )
+    max_pdf_pages: int = Field(default=500, gt=0, description="PDFs with more pages are skipped.")
+    max_document_chars: int = Field(
+        default=2_000_000, gt=0, description="Documents with more extracted text characters are skipped."
+    )
     pages_export_timeout: float = Field(
         default=60, gt=0, description="Seconds allowed for the Pages app to export a .pages file to PDF."
     )

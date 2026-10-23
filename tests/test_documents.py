@@ -240,6 +240,46 @@ class TestLoadDocuments:
         assert [f.relative_to(docs_dir).as_posix() for f in files] == ["a.md", "uploads/b.txt"]
 
 
+class TestBounds:
+    @pytest.fixture
+    def limits(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Tiny bounds: 10 characters, 1 PDF page, 10 KB of expanded DOCX."""
+        monkeypatch.setenv("HCI_MAX_DOCUMENT_CHARS", "10")
+        monkeypatch.setenv("HCI_MAX_PDF_PAGES", "1")
+        monkeypatch.setenv("HCI_MAX_DOCX_EXPANDED_MB", "0.01")
+        get_settings.cache_clear()
+
+    def _make_large_text(self, docs_dir: Path) -> Path:
+        path = docs_dir / "long.txt"
+        path.write_text("Far more than ten characters.")
+        return path
+
+    def _make_two_page_pdf(self, docs_dir: Path) -> Path:
+        return _make_pdf(docs_dir / "two.pdf", ["A.", "B."])
+
+    def _make_docx_bomb(self, docs_dir: Path) -> Path:
+        return _make_docx(docs_dir / "big.docx", [("Normal", "x")])  # the template alone expands past 10 KB
+
+    @pytest.mark.parametrize(
+        ("make", "setting"),
+        [
+            (_make_large_text, "HCI_MAX_DOCUMENT_CHARS"),
+            (_make_two_page_pdf, "HCI_MAX_PDF_PAGES"),
+            (_make_docx_bomb, "HCI_MAX_DOCX_EXPANDED_MB"),
+        ],
+        ids=["text-chars", "pdf-pages", "docx-expanded"],
+    )
+    def test_over_a_bound_is_skipped_with_reason(self, docs_dir: Path, limits: None, make, setting: str):
+        """A document over a size bound gives no chunks, and the reason names the setting."""
+        # Arrange
+        path = make(self, docs_dir)
+        # Act
+        chunks = documents.load_document(path)
+        # Assert
+        assert chunks == []
+        assert setting in (documents.document_error(path) or "")
+
+
 class TestCache:
     def test_unchanged_file_is_parsed_once(self, docs_dir: Path):
         """A second full load reuses the chunks of a file that did not change."""
