@@ -200,10 +200,12 @@ class RequestEvent:
         question: The question text, only when `metrics_log_questions` is on.
         ttft_ms: Time to the first answer text piece (step lines do not count).
         total_ms: Time to the end of the stream.
-        itl_mean_ms: Mean gap between successive answer text pieces.
-        itl_p50_ms: Median gap between pieces.
-        itl_p95_ms: 95th percentile gap between pieces.
-        itl_max_ms: Largest gap between pieces.
+        queue_ms: Time waiting for the local generation lock (server); included in `ttft_ms` and `total_ms`.
+        ipl_mean_ms: Mean gap between successive answer text pieces of one model turn. A piece is what the backend
+            streams (a word, a delta, a chunk), not a token, so backends are not directly comparable.
+        ipl_p50_ms: Median inter-piece gap.
+        ipl_p95_ms: 95th percentile inter-piece gap.
+        ipl_max_ms: Largest inter-piece gap.
         output_pieces: Answer text pieces streamed.
         output_tokens: Tokens generated, as counted by the model (all Claude turns summed).
         tokens_per_s: `output_tokens` over `model_ms` for Claude, else over the first-to-last text piece span.
@@ -230,10 +232,11 @@ class RequestEvent:
     question: str | None = None
     ttft_ms: float | None = None
     total_ms: float | None = None
-    itl_mean_ms: float | None = None
-    itl_p50_ms: float | None = None
-    itl_p95_ms: float | None = None
-    itl_max_ms: float | None = None
+    queue_ms: float | None = None
+    ipl_mean_ms: float | None = None
+    ipl_p50_ms: float | None = None
+    ipl_p95_ms: float | None = None
+    ipl_max_ms: float | None = None
     output_pieces: int = 0
     output_tokens: int | None = None
     tokens_per_s: float | None = None
@@ -364,7 +367,7 @@ class ModelTurnEvent:
 MetricEvent = RequestEvent | RetrievalEvent | JevEvent | ToolEvent | ModelTurnEvent
 
 
-@dataclass(frozen=True)
+@dataclass
 class MetricScope:
     """The answer the events being written belong to.
 
@@ -373,9 +376,11 @@ class MetricScope:
         source: `cli`, `server` or `eval`.
         conversation_id: Ties the answers of one conversation (chat session, phone conversation, eval run).
         request: The answer's request event, filled as it streams.
+        turn: Index of the current model turn (Claude agent loop), for per-turn inter-piece gaps.
     """
 
     request_id: str
     source: str
     conversation_id: str | None = None
     request: RequestEvent = field(default_factory=RequestEvent)
+    turn: int = 0

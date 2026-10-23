@@ -58,7 +58,7 @@
 <div class="grid">
   <div class="card"><h2>Time to first token (ms), per request</h2><div class="chart"><canvas id="ttft"></canvas></div></div>
   <div class="card"><h2>Time to first token distribution, per model</h2><div class="chart"><canvas id="ttftDist"></canvas></div></div>
-  <div class="card"><h2>Inter-token latency (ms): p50 and p95 per request</h2><div class="chart"><canvas id="itl"></canvas></div></div>
+  <div class="card"><h2>Inter-piece latency (ms, within a model turn): p50 and p95 per request</h2><div class="chart"><canvas id="ipl"></canvas></div></div>
   <div class="card"><h2>Generation speed (tokens/s), per request</h2><div class="chart"><canvas id="tps"></canvas></div></div>
   <div class="card"><h2>Claude tokens per request (last 40)</h2><div class="chart"><canvas id="claude"></canvas></div></div>
   <div class="card"><h2>Jev latency (ms): total and network</h2><div class="chart"><canvas id="jev"></canvas></div></div>
@@ -245,13 +245,13 @@
     draw("ttftDist", "bar", { labels, datasets }, baseOptions(false));
   }
 
-  function itlChart(requests) {
+  function iplChart(requests) {
     const sets = [{ label: "p50", data: [] }, { label: "p95", data: [] }];
     requests.forEach(r => {
-      if (r.itl_p50_ms != null) sets[0].data.push({ x: r.ts, y: r.itl_p50_ms });
-      if (r.itl_p95_ms != null) sets[1].data.push({ x: r.ts, y: r.itl_p95_ms });
+      if (r.ipl_p50_ms != null) sets[0].data.push({ x: r.ts, y: r.ipl_p50_ms });
+      if (r.ipl_p95_ms != null) sets[1].data.push({ x: r.ts, y: r.ipl_p95_ms });
     });
-    draw("itl", "scatter", { datasets: lineDatasets(sets, ["p50", "p95"]) }, baseOptions(true));
+    draw("ipl", "scatter", { datasets: lineDatasets(sets, ["p50", "p95"]) }, baseOptions(true));
   }
 
   function claudeChart(requests) {
@@ -278,11 +278,11 @@
 
   function requestTable(requests) {
     const rows = requests.slice(-LAST_REQUESTS).reverse().map(r => [
-      clock(r.ts), r.source || "", modelOf(r), fmt(r.ttft_ms), fmt(r.total_ms), fmt(r.itl_p50_ms, 1), fmt(r.itl_p95_ms, 1),
+      clock(r.ts), r.source || "", modelOf(r), fmt(r.ttft_ms), fmt(r.total_ms), fmt(r.ipl_p50_ms, 1), fmt(r.ipl_p95_ms, 1),
       fmt(r.tokens_per_s, 1), fmt(r.input_tokens), fmt(r.output_tokens), usd(costOf(r)), r.stop_reason || "",
       r.error || (r.refusal ? "refusal" : "") || (r.fallback_model ? "fallback " + r.fallback_model : ""),
     ]);
-    table("requests", ["Time", "Source", "Model", "TTFT", "Total", "ITL p50", "ITL p95", "tok/s", "In", "Out", "Cost", "Stop", "Issue"],
+    table("requests", ["Time", "Source", "Model", "TTFT", "Total", "IPL p50", "IPL p95", "tok/s", "In", "Out", "Cost", "Stop", "Issue"],
           rows, "No requests yet: ask a question with `hci ask`, `hci chat`, the phone or `hci eval`.");
   }
 
@@ -315,7 +315,7 @@
     costCharts(requests, of("model_turn"), jev);
     conversationTable(requests);
     ttftCharts(requests, models);
-    itlChart(requests);
+    iplChart(requests);
     draw("tps", "scatter", { datasets: lineDatasets(timeSeries(requests, "tokens_per_s", modelOf), models) }, baseOptions(true));
     claudeChart(requests);
     const jevSets = [{ label: "total", data: jev.map(j => ({ x: j.ts, y: j.latency_ms })) },

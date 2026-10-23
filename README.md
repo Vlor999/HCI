@@ -108,7 +108,7 @@ sent as `conversation_id` in `/api/ask`), one per `hci eval` run.
 
 | `kind` | Fields |
 | --- | --- |
-| `request` | provider, model, scenario, `question_chars`, `ttft_ms` (first answer text, steps excluded), `total_ms`, `itl_mean_ms` / `itl_p50_ms` / `itl_p95_ms` / `itl_max_ms` (gaps between streamed text pieces), `output_pieces`, `output_tokens`, `tokens_per_s`, `input_tokens`, Claude `cache_creation_input_tokens` / `cache_read_input_tokens`, `model_ms` / `tool_ms` (Claude), `stop_reason`, `refusal`, `fallback_model`, `error` (class name), `cost_usd`, `cost` (by component), `price_unknown` |
+| `request` | provider, model, scenario, `question_chars`, `ttft_ms` (first answer text, steps excluded), `total_ms`, `queue_ms` (wait for the local generation lock, server), `ipl_mean_ms` / `ipl_p50_ms` / `ipl_p95_ms` / `ipl_max_ms` (inter-piece latency: gaps between streamed text pieces within one model turn; a piece is a word, a delta or a chunk depending on the backend, not a token), `output_pieces`, `output_tokens`, `tokens_per_s`, `input_tokens`, Claude `cache_creation_input_tokens` / `cache_read_input_tokens`, `model_ms` / `tool_ms` (Claude), `stop_reason`, `refusal`, `fallback_model`, `error` (class name), `cost_usd`, `cost` (by component), `price_unknown` |
 | `retrieval` | `latency_ms` (Jev included), `k`, `chunks`, `pinned`, `judged`, `answerable` |
 | `jev` | `latency_ms`, `network_ms` (httpx `elapsed`), `questions`, `passages_kept` / `passages_total`, `answerable_p`, Jev `input_tokens` / `output_tokens`, `model`, `fallback`, `error`, `cost_usd`, `price_unknown` |
 | `tool` | agent tool name, `duration_ms`, `ok`, `result_chars`, `passages` (for `query_context`) |
@@ -132,7 +132,7 @@ publish prices, so set them from console.typesafe.ai: `HCI_JEV_PRICE_INPUT_PER_M
 contents, tool inputs and results, API keys and the token are never logged. `HCI_METRICS_ENABLED=false` turns it off.
 The file rotates to `metrics.jsonl.1` at `HCI_METRICS_MAX_MB` (default 10); one backup is kept.
 
-The dashboard polls the log every 3 s: TTFT over time and its distribution per model, inter-token latency p50/p95,
+The dashboard polls the log every 3 s: TTFT over time and its distribution per model, inter-piece latency p50/p95,
 tokens/s, Claude tokens per request and totals, Jev latency (total and network) and tokens, retrieval latency, tool
 calls, errors and fallbacks, and the last requests. Cost: today, last 7 days and the whole log (current file plus its
 backup), average per answer, Anthropic and Jev totals, cumulative cost per model, the share of each component, cost

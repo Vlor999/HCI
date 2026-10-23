@@ -196,6 +196,19 @@ def test_malformed_conversation_id_is_422(client, conversation_id):
     )
 
 
+def test_ttft_includes_the_local_lock_wait(client):
+    """A local request waiting for another one has the wait in `queue_ms` and in its TTFT."""
+    # Arrange
+    server.local_lock.acquire()
+    threading.Timer(0.3, server.local_lock.release).start()
+    # Act
+    client.post("/api/ask", headers=AUTH, json={"question": "q"})
+    # Assert
+    (event,) = [json.loads(line) for line in get_settings().metrics_file.read_text().splitlines()]
+    assert event["queue_ms"] >= 250
+    assert event["ttft_ms"] >= event["queue_ms"]
+
+
 class TestMetrics:
     def test_metrics_needs_token(self, client):
         """`/api/metrics` on `hci serve` is behind the same token as the API."""

@@ -165,6 +165,7 @@ class ClaudeMemoryAgent:
         # one stream per model turn; the runner runs the tools, then sends the next request, inside `next`
         start, tools_before = time.perf_counter(), _tool_ms()
         for stream in self._runner(run, messages):
+            metrics.next_turn()
             yield from run.drain_steps()
             yield from map_events(stream)
             message = stream.get_final_message()

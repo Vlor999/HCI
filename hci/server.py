@@ -7,6 +7,7 @@ Stream protocol of `/api/ask`: answer text, step lines prefixed by `STEP_MARKER`
 import json
 import socket
 import threading
+import time
 from collections.abc import Iterator
 from contextlib import nullcontext
 from functools import cache, partial
@@ -147,7 +148,8 @@ def ask(req: AskRequest) -> StreamingResponse:
     provider = req.provider or available[0]
     if provider not in available:
         raise HTTPException(400, f"Provider must be one of {available}.")
-    return StreamingResponse(_answer_stream(provider, req), media_type="text/plain; charset=utf-8")
+    stream = _answer_stream(provider, req, time.perf_counter())
+    return StreamingResponse(stream, media_type="text/plain; charset=utf-8")
 
 
 @app.post("/api/facts", dependencies=[Depends(auth)])
@@ -234,12 +236,17 @@ def _get_answerer(provider: str) -> Answer:
     return answerers[provider]
 
 
-def _answer_stream(provider: str, req: AskRequest) -> Iterator[str]:
+def _answer_stream(provider: str, req: AskRequest, start: float) -> Iterator[str]:
+    """Answer under the local lock; the metrics clock starts at `start`, so TTFT includes the wait and model load."""
     proposals: list[dict] = []
     with nullcontext() if provider == Provider.ANTHROPIC else local_lock:
+        queue_ms = metrics.elapsed_ms(start)
         answer = _get_answerer(provider)
         stream = answer(req.question, req.scenario, req.history, partial(_propose, proposals))
-        yield from metrics.track(stream, MetricSource.SERVER, req.question, req.scenario, req.conversation_id)
+        tracked = metrics.track(
+            stream, MetricSource.SERVER, req.question, req.scenario, req.conversation_id, start=start, queue_ms=queue_ms
+        )
+        yield from tracked
     if proposals:  # facts the agent wants to save; the page shows approve buttons
         yield PROPOSALS_MARKER + json.dumps(proposals)
 

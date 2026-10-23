@@ -48,18 +48,27 @@ class TestFillTiming:
         # Arrange
         request = RequestEvent(output_tokens=40)
         # Act
-        metrics.fill_timing(request, start=0.0, text_times=[0.5, 0.6, 0.8, 1.3], end=1.5)
+        metrics.fill_timing(request, start=0.0, turns=[[0.5, 0.6, 0.8, 1.3]], end=1.5)
         # Assert
         assert (request.ttft_ms, request.total_ms, request.output_pieces) == (500.0, 1500.0, 4)
-        assert (request.itl_mean_ms, request.itl_p50_ms, request.itl_max_ms) == (266.7, 200.0, 500.0)
+        assert (request.ipl_mean_ms, request.ipl_p50_ms, request.ipl_max_ms) == (266.7, 200.0, 500.0)
         assert request.tokens_per_s == 50.0  # 40 tokens over 0.8 s of text
+
+    def test_gaps_stay_inside_a_turn(self):
+        """The wait between two Claude turns (tool calls) is not an inter-piece gap."""
+        # Arrange
+        request = RequestEvent()
+        # Act
+        metrics.fill_timing(request, start=0.0, turns=[[1.0, 1.01], [5.0, 5.02]], end=5.1)
+        # Assert
+        assert (request.ipl_max_ms, request.ipl_mean_ms, request.ttft_ms) == (20.0, 15.0, 1000.0)
 
     def test_claude_rate_uses_model_time(self):
         """With Claude's model time known, tokens/s divides by it, not by a burst of text pieces."""
         # Arrange
         request = RequestEvent(output_tokens=40, model_ms=2000.0)
         # Act
-        metrics.fill_timing(request, start=0.0, text_times=[5.0, 5.001], end=5.002)
+        metrics.fill_timing(request, start=0.0, turns=[[5.0, 5.001]], end=5.002)
         # Assert
         assert request.tokens_per_s == 20.0
 
@@ -68,10 +77,10 @@ class TestFillTiming:
         # Arrange
         request = RequestEvent(output_tokens=3)
         # Act
-        metrics.fill_timing(request, start=1.0, text_times=[], end=1.2)
+        metrics.fill_timing(request, start=1.0, turns=[[]], end=1.2)
         # Assert
         assert request.total_ms == 200.0
-        assert request.ttft_ms is request.itl_p50_ms is request.tokens_per_s is None
+        assert request.ttft_ms is request.ipl_p50_ms is request.tokens_per_s is None
 
 
 class TestTrack:
@@ -86,7 +95,34 @@ class TestTrack:
         assert pieces == [status("Searching"), "Take ", "path C."]
         record = _read(get_settings().metrics_file)[0]
         assert record["kind"] == "request" and record["source"] == "cli"
-        assert (record["ttft_ms"], record["itl_max_ms"], record["total_ms"]) == (300.0, 50.0, 500.0)
+        assert (record["ttft_ms"], record["ipl_max_ms"], record["total_ms"]) == (300.0, 50.0, 500.0)
+
+    def test_next_turn_splits_the_gaps(self):
+        """Pieces after `next_turn` start a new turn: the gap across the turns is not measured."""
+
+        # Arrange
+        def answer() -> Iterator[str]:
+            metrics.next_turn()
+            yield "a"
+            metrics.next_turn()
+            yield "b"
+
+        clock = FakeClock(0.0, 0.1, 9.0, 9.5)
+        # Act
+        list(metrics.track(answer(), MetricSource.CLI, "q", None, clock=clock))
+        # Assert
+        record = _read(get_settings().metrics_file)[0]
+        assert (record["ttft_ms"], record["ipl_max_ms"], record["output_pieces"]) == (100.0, None, 2)
+
+    def test_start_and_queue_count_in_ttft(self):
+        """A start taken before the queue and model load counts in TTFT; the queue wait is logged apart."""
+        # Arrange: the request arrived at 0; the stream starts at 2 (after the lock); first text at 2.5
+        clock = FakeClock(2.5, 3.0)
+        # Act
+        list(metrics.track(_make_stream("a"), MetricSource.SERVER, "q", None, start=0.0, queue_ms=1500.0, clock=clock))
+        # Assert
+        record = _read(get_settings().metrics_file)[0]
+        assert (record["ttft_ms"], record["total_ms"], record["queue_ms"]) == (2500.0, 3000.0, 1500.0)
 
     def test_inner_events_share_the_request_id(self):
         """Events written while the answer streams carry its request id, even from another thread's next()."""

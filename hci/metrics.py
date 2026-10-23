@@ -60,25 +60,28 @@ def _round(value: float | None) -> float | None:
     return None if value is None else round(value, 1)
 
 
-def fill_timing(request: RequestEvent, start: float, text_times: list[float], end: float) -> None:
+def fill_timing(request: RequestEvent, start: float, turns: list[list[float]], end: float) -> None:
     """Set the latency fields of a request from its clock readings.
+
+    Inter-piece gaps are taken inside each model turn only, so the tool time between Claude turns is not a gap.
 
     Args:
         request: The event to fill.
-        start: Clock when the answer started.
-        text_times: Clock at each answer text piece (step lines excluded).
+        start: Clock when the request arrived (before any queue or model load).
+        turns: Clock at each answer text piece (step lines excluded), one list per model turn.
         end: Clock when the stream ended.
     """
+    text_times = [t for turn in turns for t in turn]
     request.total_ms = elapsed_ms(start, end)
     request.output_pieces = len(text_times)
     if not text_times:
         return
     request.ttft_ms = elapsed_ms(start, text_times[0])
-    gaps = [(b - a) * 1000 for a, b in zip(text_times, text_times[1:])]
+    gaps = [(b - a) * 1000 for turn in turns for a, b in zip(turn, turn[1:])]
     if gaps:
-        request.itl_mean_ms = _round(sum(gaps) / len(gaps))
-        request.itl_p50_ms, request.itl_p95_ms = _round(percentile(gaps, 50)), _round(percentile(gaps, 95))
-        request.itl_max_ms = _round(max(gaps))
+        request.ipl_mean_ms = _round(sum(gaps) / len(gaps))
+        request.ipl_p50_ms, request.ipl_p95_ms = _round(percentile(gaps, 50)), _round(percentile(gaps, 95))
+        request.ipl_max_ms = _round(max(gaps))
     # Claude's text can reach us in one burst after the turn, so its rate is over model time, not the text span
     span = request.model_ms / 1000 if request.model_ms else text_times[-1] - text_times[0]
     if request.output_tokens and span > 0:
@@ -236,6 +239,8 @@ def track(
     question: str,
     scenario: int | None,
     conversation_id: str | None = None,
+    start: float | None = None,
+    queue_ms: float | None = None,
     clock: Callable[[], float] = time.perf_counter,
 ) -> Iterator[str]:
     """Pass an answer stream through, timing it, and write its `request` event when it ends.
@@ -249,27 +254,39 @@ def track(
         question: The question, for its length (and text, when `metrics_log_questions` is on).
         scenario: Current scenario index.
         conversation_id: Conversation the answer belongs to.
+        start: Clock reading when the request arrived, so TTFT and total include queueing and model loading;
+            None starts now.
+        queue_ms: Time the request waited for the local generation lock.
         clock: Monotonic clock in seconds.
 
     Yields:
         The pieces, unchanged.
     """
     current = _new_scope(source, question, scenario, conversation_id)
+    current.request.queue_ms = queue_ms
     context = contextvars.copy_context()
     context.run(_scope.set, current)
-    stream, text_times, start = iter(pieces), [], clock()
+    stream, turns, start = iter(pieces), [[]], clock() if start is None else start
     try:
         while (piece := context.run(_pull, stream)) is not None:
             if piece and not piece.startswith(STEP_MARKER):  # empty pieces carry no text
-                text_times.append(clock())
+                turns.extend([] for _ in range(current.turn + 1 - len(turns)))
+                turns[-1].append(clock())
             yield piece
     except Exception as e:
         current.request.error = type(e).__name__
         raise
     finally:
-        fill_timing(current.request, start, text_times, clock())
+        fill_timing(current.request, start, turns, clock())
         fill_cost(current.request)
         context.run(emit, current.request)
+
+
+def next_turn() -> None:
+    """Mark the start of a new model turn: inter-piece gaps are not measured across turns."""
+    current = _scope.get()
+    if current is not None:
+        current.turn += 1
 
 
 def update(**fields: object) -> None:
