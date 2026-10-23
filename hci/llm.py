@@ -12,7 +12,7 @@ DEFAULTS = {
     "mlx": "mlx-community/Qwen3-4B-4bit",
     "cuda": "Qwen/Qwen3-4B",
     "cpu": "Qwen/Qwen3-0.6B",
-    "anthropic": "claude-opus-5-5",
+    "anthropic": "claude-sonnet-5-5",
 }
 
 
@@ -67,7 +67,7 @@ def anthropic(name: str) -> Generate:
             max_tokens=16000,
             system=system,
             messages=[{"role": "user", "content": user}],
-            output_config={"effort": "low"},
+            output_config={"effort": "medium"},
             betas=["server-side-fallback-2026-07-01"],
             fallbacks="default",  # a declined request is retried server-side on a fallback model
         ) as stream:

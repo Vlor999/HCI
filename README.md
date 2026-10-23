@@ -17,7 +17,7 @@ question ─► hybrid retrieval ─► Jev judge (optional) ─► grounded pro
   passage and checks whether the question can be answered at all. Below the threshold, the LLM is skipped and the
   app says it doesn't know.
 - **Generation**: picks the fastest backend it finds. That's MLX on Apple Silicon, then CUDA, then CPU (`transformers`).
-  Anthropic (`claude-opus-5-5`) is also available.
+  Anthropic (`claude-sonnet-5-5`, effort `medium`) is also available.
 - **Travel times** (`t = d / v`) are computed when the data is indexed. Small models got this wrong before
   (`data/corrections/`).
 
@@ -36,7 +36,7 @@ Options: `-s` sets the scenario index in `data/paths.json`. `-p` picks the provi
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `HCI_PROVIDER` | fastest local | `mlx`, `cuda`, `cpu`, `anthropic` |
-| `HCI_MODEL` | `mlx-community/Qwen3-4B-4bit` (MLX), `Qwen/Qwen3-4B` (CUDA), `Qwen/Qwen3-0.6B` (CPU), `claude-opus-5-5` | generator |
+| `HCI_MODEL` | `mlx-community/Qwen3-4B-4bit` (MLX), `Qwen/Qwen3-4B` (CUDA), `Qwen/Qwen3-0.6B` (CPU), `claude-sonnet-5-5` | generator |
 | `HCI_EMBED_MODEL` | `BAAI/bge-small-en-v1.5` | embedder |
 | `ANTHROPIC_API_KEY` | | for `-p anthropic` |
 | `TYPESAFE_API_KEY` | | turns on the Jev judge |
