@@ -8,13 +8,13 @@ from functools import cache
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
-from pydantic import BaseModel
 
 from hci import corpus
 from hci.agent import Answer, answerer
 from hci.constants import PROPOSALS_MARKER, WEB_PAGE
 from hci.device import backend
 from hci.rag import RAG
+from hci.schemas import AskRequest, FactRequest
 
 TOKEN = os.environ.get("HCI_TOKEN") or secrets.token_urlsafe(16)
 PROVIDERS = [backend(), "anthropic"]
@@ -34,18 +34,6 @@ def auth(authorization: str = Header("")) -> None:
         raise HTTPException(401, "bad token")
 
 
-class Ask(BaseModel):
-    question: str
-    scenario: int | None = None
-    provider: str = PROVIDERS[0]
-    history: list[tuple[str, str]] = []
-
-
-class Fact(BaseModel):
-    text: str
-    scenario: int | None = None
-
-
 @app.get("/")
 def index() -> FileResponse:
     return FileResponse(WEB_PAGE)
@@ -57,8 +45,9 @@ def info() -> dict:
 
 
 @app.post("/api/ask", dependencies=[Depends(auth)])
-def ask(req: Ask) -> StreamingResponse:
-    if req.provider not in PROVIDERS:
+def ask(req: AskRequest) -> StreamingResponse:
+    provider = req.provider or PROVIDERS[0]
+    if provider not in PROVIDERS:
         raise HTTPException(400, f"provider must be one of {PROVIDERS}")
 
     proposals: list[dict] = []
@@ -69,9 +58,9 @@ def ask(req: Ask) -> StreamingResponse:
 
     def stream():
         with lock:
-            if req.provider not in answerers:
-                answerers[req.provider] = answerer(get_rag(), req.provider)
-            yield from answerers[req.provider](req.question, req.scenario, req.history, propose)
+            if provider not in answerers:
+                answerers[provider] = answerer(get_rag(), provider)
+            yield from answerers[provider](req.question, req.scenario, req.history, propose)
         if proposals:  # facts the agent wants to save; the page shows approve buttons
             yield PROPOSALS_MARKER + json.dumps(proposals)
 
@@ -79,7 +68,7 @@ def ask(req: Ask) -> StreamingResponse:
 
 
 @app.post("/api/facts", dependencies=[Depends(auth)])
-def add_fact(fact: Fact) -> dict:
+def add_fact(fact: FactRequest) -> dict:
     with lock:
         get_rag().add_fact(fact.text, fact.scenario)
     return {"ok": True}
