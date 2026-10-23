@@ -146,6 +146,14 @@ class TestFormats:
         # Act / Assert
         assert _texts(path) == ["log.pdf, page 1: Bridge closed.", "log.pdf, page 2: Ford is shallow."]
 
+    def test_ligatures_become_letters(self, docs_dir: Path):
+        """Ligatures, as PDF exports often produce, are normalised so `floods` matches `ﬂoods`."""
+        # Arrange
+        path = docs_dir / "notes.txt"
+        path.write_text("Path Q \ufb02oods.")
+        # Act / Assert
+        assert _texts(path) == ["notes.txt: Path Q floods."]
+
 
 class TestPages:
     def test_exported_pdf_is_indexed(self, docs_dir: Path, tmp_path: Path):

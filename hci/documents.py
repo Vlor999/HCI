@@ -10,6 +10,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import unicodedata
 from collections.abc import Callable, Iterable
 from pathlib import Path
 
@@ -138,6 +139,8 @@ def _tail(units: list[str], overlap: int) -> list[str]:
 
 
 def _paragraphs(text: str) -> list[str]:
+    """Blank-line paragraphs, whitespace collapsed; NFKC turns PDF ligatures (`ﬂ`) back into letters for BM25."""
+    text = unicodedata.normalize("NFKC", text)
     return [" ".join(p.split()) for p in PARAGRAPH_BREAK.split(text) if p.strip()]
 
 
