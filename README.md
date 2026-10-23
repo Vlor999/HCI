@@ -38,18 +38,19 @@ If the records do not contain the answer, the app says it does not know.
 
 ## Features
 
-- **Hybrid retrieval**: `BAAI/bge-small-en-v1.5` embeddings and BM25, fused with reciprocal rank fusion. The current
-  scenario's steps and facts are always in context; other scenarios are never searched.
-- **Document ingestion**: Markdown, text, PDF, Word and Apple Pages, split along headings and pages, with
-  overlap, and re-indexed when a file changes.
-- **Jev judge (optional)**: with `TYPESAFE_API_KEY`, [Jev](https://docs.typesafe.ai) scores each retrieved passage and
-  refuses questions the records cannot answer.
-- **Local generation**: MLX on Apple Silicon, then CUDA, then CPU (`transformers`), picked automatically.
-- **Claude agent mode**: `-p anthropic` lets Claude search the records and propose facts through tools. Facts are
-  saved only after operator approval.
-- **Streaming with steps**: tokens stream as they are produced, with the current step (`Searching: "..."`).
-- **Phone web app**: Markdown answers (tables, callouts, citation badges), document upload, works offline once loaded.
-- **JSON test cases and `hci eval`**: retrieval and answer checks written as data.
+- Hybrid retrieval with `BAAI/bge-small-en-v1.5` embeddings and BM25, fused with reciprocal rank fusion. The current
+  scenario's steps and facts are always in context, and other scenarios are never searched.
+- Ingestion of Markdown, text, PDF, Word and Apple Pages files, split along headings and pages with overlap. A file
+  is indexed again when it changes.
+- An optional Jev judge. With `TYPESAFE_API_KEY` set, [Jev](https://docs.typesafe.ai) scores each retrieved passage
+  and refuses questions the records cannot answer.
+- Local generation on MLX (Apple Silicon), CUDA or CPU (`transformers`), picked in that order.
+- A Claude agent mode (`-p anthropic`). Claude searches the records and proposes facts through tools, and a fact is
+  saved only after the operator approves it.
+- Streamed answers that show the current step, for example `Searching: "..."`.
+- A phone web app with Markdown answers (tables, callouts, citation badges) and document upload. It works offline
+  once loaded.
+- Test cases written as JSON data and checked by pytest (retrieval) and `hci eval` (answers).
 
 ## Quick start
 
@@ -68,8 +69,8 @@ The first run downloads the models. API keys go in `.env` (git-ignored); load it
 `-s` is the scenario index in `data/paths.json`, `-p` the provider (`mlx | cuda | cpu | anthropic`), `-m` the model.
 These come before the sub-command.
 
-Pitfall: the Anthropic SDK honours `ANTHROPIC_BASE_URL`. If a wrapper sets it, direct keys fail with 401 and
-`--env-file` does not override it; prefix the command with `ANTHROPIC_BASE_URL=https://api.anthropic.com`.
+The Anthropic SDK reads `ANTHROPIC_BASE_URL`. If a wrapper sets it, a direct key fails with 401, and `--env-file`
+does not override it. Prefix the command with `ANTHROPIC_BASE_URL=https://api.anthropic.com`.
 
 In `chat`, type `/` for a menu: `/fact <text>`, `/scenario [n]`, `/clear`, `/help`, `/exit`.
 
@@ -101,14 +102,14 @@ uv run hci serve    # prints http://<lan-ip>:8000/#<token>
 ```
 
 Open the link on a phone on the same Wi-Fi, then Share, Add to Home Screen. For each question you choose where
-generation runs: **on-prem** (the machine running `hci serve`, nothing leaves your network) or **anthropic** (listed
+generation runs: on the machine running `hci serve` (nothing leaves your network), or on Claude (`anthropic`, listed
 only when `ANTHROPIC_API_KEY` is set; the key stays on the server). Answers render as Markdown, sanitized with DOMPurify;
 `marked` and DOMPurify are pinned in `web/vendor/`. Facts proposed by Claude appear with Approve / Reject buttons.
 One local generation runs at a time.
 
 ## Documents
 
-Drop files into `data/documents/` (subfolders included) or upload them from the phone with **Add document**.
+Drop files into `data/documents/` (subfolders included), or upload them from the phone with the Add document button.
 A file that fails to parse is skipped with a warning and never breaks the index.
 
 | Format | Sections | Paragraphs |
@@ -134,10 +135,10 @@ The index is rebuilt in memory at startup and whenever these files change.
 
 ## Agent mode
 
-With `-p anthropic`, Claude drives the memory through three tools: `query_context` (search the records),
-`add_context` (propose a new fact) and `list_scenarios`. A proposed fact is never saved without the operator: the CLI
-asks `[y/N]`, the phone shows Approve / Reject. Local models keep the fixed pipeline; they are too small to use tools
-reliably. A Claude failure (bad key, rate limit, network) ends the stream with a `Claude request failed` step and a
+With `-p anthropic`, Claude works on the records through three tools: `query_context` (search the records),
+`add_context` (propose a new fact) and `list_scenarios`. The operator approves every proposed fact before it is saved:
+the CLI asks `[y/N]` and the phone shows Approve / Reject. Local models use the fixed pipeline, because they are too small to
+use tools reliably. A Claude failure (bad key, rate limit, network) ends the stream with a `Claude request failed` step and a
 message saying what to fix.
 
 ## Evaluation
@@ -184,12 +185,6 @@ Conventions for contributors and agents are in `CLAUDE.md` and `.agents/rules/`.
 - The server speaks plain HTTP. On a LAN the token and answers travel unencrypted: use a trusted network or a TLS
   reverse proxy.
 - API keys stay on the server and never reach the web page.
-
-## Project history
-
-The first version was a school project for the HCI course: a local Ollama model with the records stuffed into the
-prompt, no retrieval. It was rewritten as the RAG described here. The report and slides are in
-`doc/robot-explain-yourself/`; the original notes are in `doc/rendu.md`.
 
 ## License
 
