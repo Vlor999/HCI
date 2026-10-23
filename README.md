@@ -52,6 +52,9 @@ Options: `-s` sets the scenario index in `data/paths.json`. `-p` picks the provi
 | `TYPESAFE_API_KEY` | | turns on the Jev judge |
 | `HCI_JEV_KEEP`, `HCI_JEV_ANSWERABLE` | `0.5`, `0.3` | Jev thresholds. Tune them on questions the docs can't answer. |
 
+Every tunable (retrieval `k`, Jev timeout, agent limits, server host and port, facts file...) is a field of
+`Settings` in `hci/config.py`, read from `HCI_<FIELD>` (e.g. `HCI_K=8`, `HCI_PORT=9000`).
+
 
 ## Phone
 
