@@ -25,7 +25,11 @@ question ─► hybrid retrieval ─► Jev judge (optional) ─► grounded pro
   tools reliably.
 - **Streaming with steps**: answers stream token by token. The current step is shown as it happens: thinking,
   `Searching: "..."`, `Found 9 passages`, `Proposing fact: "..."`. The CLI prints steps in grey, the phone above the
-  answer. On the wire, a step is a line that starts with `\x1f`.
+  answer. On the wire, a step is a line that starts with `\x1f`; facts the agent proposes come last, after `\x1e`, as
+  a JSON list. Both markers are defined once, in `hci/constants.py`.
+- **Errors**: a Claude failure (bad key, rate limit, network) ends the stream with a `Claude request failed` step and
+  a message saying what to fix. A Jev outage keeps every passage. A corrupt `facts.json` is renamed
+  `facts.json.corrupt-<timestamp>` and logged, so the next fact cannot overwrite it.
 - **Travel times** (`t = d / v`) are computed when the data is indexed. Small models got this wrong before
   (`data/corrections/`).
 
@@ -35,9 +39,25 @@ question ─► hybrid retrieval ─► Jev judge (optional) ─► grounded pro
 uv sync
 # API keys go in .env (git-ignored), e.g. ANTHROPIC_API_KEY=... ; load it with: uv run --env-file .env hci ...
 uv run hci -s 0 ask "In which order should I take the paths to finish first?"
-uv run hci -s 0 chat          # follow-up questions; type / for commands (/fact, /scenario, /clear, /help, /exit)
+uv run hci -s 0 chat          # follow-up questions and slash commands
 uv run hci fact -s 2 "Path Q is closed for maintenance"
 ```
+
+On Linux, `uv sync` installs CPU-only torch (`[tool.uv.sources]` in `pyproject.toml`, for CI). On a CUDA box, remove
+that `torch` source.
+
+Chat commands (type `/` for a fuzzy menu):
+
+| Command | Does |
+| --- | --- |
+| `/fact <text>` | save an operator update for the current scenario (prints the usage without text) |
+| `/scenario [n]` | show the current scenario, or switch to `n` (checked against `data/paths.json`; clears the conversation) |
+| `/clear` | forget the conversation |
+| `/help` | list commands |
+| `/exit` | quit (Ctrl-D works too) |
+
+To add a command, add it to `COMMANDS` in `hci/constants.py` and write `ChatSession.cmd_<name>` in `hci/cli.py`.
+A command without its method fails at import.
 
 Options: `-s` sets the scenario index in `data/paths.json`. `-p` picks the provider (`mlx | cuda | cpu | anthropic`).
 `-m` picks the model.
@@ -53,7 +73,8 @@ Options: `-s` sets the scenario index in `data/paths.json`. `-p` picks the provi
 | `HCI_JEV_KEEP`, `HCI_JEV_ANSWERABLE` | `0.5`, `0.3` | Jev thresholds. Tune them on questions the docs can't answer. |
 
 Every tunable (retrieval `k`, Jev timeout, agent limits, server host and port, facts file...) is a field of
-`Settings` in `hci/config.py`, read from `HCI_<FIELD>` (e.g. `HCI_K=8`, `HCI_PORT=9000`).
+`Settings` in `hci/config.py`, read from `HCI_<FIELD>` (e.g. `HCI_K=8`, `HCI_PORT=9000`). Nothing else reads the
+environment.
 
 
 ## Phone
@@ -67,9 +88,15 @@ keeps the last turns as history, and saves facts. For each question you pick whe
 
 - **on-prem**: the model runs on the machine running `hci serve` (MLX on a Mac, CUDA on a GPU box). Nothing leaves
   your network.
-- **anthropic**: generation goes to Claude. The API key stays on the server and never reaches the phone.
+- **anthropic**: generation goes to Claude. The API key stays on the server and never reaches the phone. Listed
+  only when `ANTHROPIC_API_KEY` is set; asking for it otherwise gives 400.
 
-All API calls need the token. Set `HCI_TOKEN` to keep it the same across restarts.
+One local generation runs at a time (local models are not thread-safe). Claude answers and fact approvals never wait
+for it.
+
+All API calls need the token. Set `HCI_TOKEN` to keep it the same across restarts. The server speaks plain HTTP: on
+the LAN, the token and answers travel unencrypted. Use a trusted network, or put a TLS reverse proxy (Caddy, nginx) in
+front.
 
 ## Data
 
@@ -86,10 +113,13 @@ The index is rebuilt in memory at startup. There are only a few dozen chunks, so
 ## Test and evaluate
 
 ```sh
-uv run pytest                 # unit test + every case in tests/cases/*.json (retrieval only, no LLM)
+make check-all                # format, lint, ty, then pytest: unit tests + every case in tests/cases/*.json
 uv run hci eval               # same cases end to end with the LLM: JSON report of quality and latency
 uv run hci -p anthropic eval  # same, on Claude
 ```
+
+Unit tests mirror the modules (`tests/test_<module>.py`) and mock Anthropic, Jev and model loading. Only the case
+runner uses the real embedder (downloaded once). CI runs `uv sync --locked` then `make check-all`.
 
 Each file in `tests/cases/` is a JSON list of cases. The format is defined in `tests/cases/schema.json`, and pytest
 validates every file against it. A case gives a question, an optional scenario, history and facts, and what to expect:
