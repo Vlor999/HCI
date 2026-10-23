@@ -79,6 +79,9 @@ PARAGRAPH_BREAK = re.compile(r"\n\s*\n")
 PATH_SEPARATORS = re.compile(r"[\\/]")  # POSIX and Windows, for client file names
 UNSAFE_NAME_CHARS = re.compile(r"[^\w.-]+")
 UPLOADS_DIRNAME = "uploads"  # subfolder of the documents dir that phone uploads go to
+UPLOADS_ROUTE = "/api/documents"
+UPLOAD_OVERHEAD_BYTES = 64 * 1024  # multipart boundaries and headers around the file, allowed on top of max_upload_mb
+MAX_NAME_BYTES = 120  # saved file name stem, in UTF-8 bytes (file systems cap names at 255)
 PAGES_HINT = "export it from Pages as PDF or DOCX and add that file instead"
 # Exports a .pages file to PDF through the Pages app; paths come as arguments, never spliced into the script.
 PAGES_EXPORT_SCRIPT = """on run argv

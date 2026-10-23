@@ -3,7 +3,7 @@
 import json
 import threading
 from collections.abc import Iterator
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -222,6 +222,7 @@ class TestDocuments:
         response = self._upload(docs_client, "scan.pdf", b"not a pdf")
         # Assert
         assert response.status_code == 422
+        assert response.json()["detail"].startswith("Could not index scan.pdf: ")
         assert not list((tmp_path / "documents").rglob("*.pdf"))
 
     def test_uploaded_document_is_retrievable(self, docs_client: TestClient):
@@ -232,6 +233,45 @@ class TestDocuments:
         ids = [c.id for c in server.get_rag().retrieve("When does path Q flood?").chunks]
         # Assert
         assert any(i.endswith("uploads/flood.md#1") for i in ids)
+
+    @pytest.mark.parametrize(("headers", "status"), [({}, 401), (AUTH, 413)], ids=["no-token", "token"])
+    def test_oversized_body_is_refused_before_parsing(self, docs_client: TestClient, headers: dict, status: int):
+        """A body declared above the limit is refused from its headers: 401 without token, 413 with; never parsed."""
+        # Act
+        with patch("starlette.requests.MultiPartParser") as parser:
+            response = self._upload(docs_client, "big.md", b"x" * 200_000, headers=headers)
+        # Assert
+        assert response.status_code == status
+        parser.assert_not_called()
+
+    def test_upload_without_length_is_411(self, docs_client: TestClient):
+        """A streamed upload without Content-Length is refused, so its size is always known up front."""
+        # Act
+        response = docs_client.post("/api/documents", headers=AUTH, content=iter([b"--x\r\n"]))
+        # Assert
+        assert response.status_code == 411
+
+    def test_long_name_is_shortened(self, docs_client: TestClient):
+        """A file name too long for the file system is cut, keeping its extension."""
+        # Act
+        response = self._upload(docs_client, "a" * 300 + ".md")
+        # Assert
+        assert response.status_code == 200
+        assert response.json()["name"] == "uploads/" + "a" * 120 + ".md"
+
+    def test_write_failure_is_500_without_partial_file(self, docs_client: TestClient, tmp_path):
+        """A disk error while saving gives a clear 500 and leaves nothing in the uploads folder."""
+        # Arrange
+        uploads = tmp_path / "documents" / "uploads"
+        uploads.mkdir(parents=True)
+        uploads.chmod(0o500)
+        # Act
+        response = self._upload(docs_client, "notes.md")
+        # Assert
+        uploads.chmod(0o700)
+        assert response.status_code == 500
+        assert response.json()["detail"] == "Could not save the file on the server."
+        assert not list(uploads.iterdir())
 
     def test_list_shows_indexed_documents(self, docs_client: TestClient):
         """`GET /api/documents` lists each document with its chunk count."""

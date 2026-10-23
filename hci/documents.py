@@ -22,6 +22,7 @@ from hci.config import get_settings
 from hci.constants import (
     DOCUMENT_EXTENSIONS,
     MARKDOWN_HEADING,
+    MAX_NAME_BYTES,
     PAGES_EXPORT_SCRIPT,
     PAGES_HINT,
     PARAGRAPH_BREAK,
@@ -69,7 +70,7 @@ def document_files() -> list[Path]:
 
 
 def safe_name(filename: str) -> str:
-    """A client file name made safe to save: no folders, no leading dots, only word characters, `.` and `-`.
+    """A client file name made safe to save: no folders, no leading dots, only word characters, `.` and `-`, short.
 
     Args:
         filename: The name sent by the client, possibly with a path (`../../x.md`, `C:\\x.md`).
@@ -77,8 +78,8 @@ def safe_name(filename: str) -> str:
     Returns:
         The base name, possibly empty.
     """
-    base = PATH_SEPARATORS.split(filename)[-1]
-    return UNSAFE_NAME_CHARS.sub("_", base).lstrip(".")
+    name = Path(UNSAFE_NAME_CHARS.sub("_", PATH_SEPARATORS.split(filename)[-1]).lstrip("."))
+    return name.stem.encode()[:MAX_NAME_BYTES].decode(errors="ignore") + name.suffix
 
 
 def save_upload(name: str, data: bytes) -> Path:
@@ -90,6 +91,9 @@ def save_upload(name: str, data: bytes) -> Path:
 
     Returns:
         The saved file.
+
+    Raises:
+        OSError: The file could not be written; no partial file is left.
     """
     folder = get_settings().documents_dir / UPLOADS_DIRNAME
     folder.mkdir(parents=True, exist_ok=True)
@@ -103,6 +107,10 @@ def save_upload(name: str, data: bytes) -> Path:
             return path
         except FileExistsError:
             n += 1
+        except OSError as e:
+            path.unlink(missing_ok=True)
+            logger.warning("Could not save upload {}: {}", path, e)
+            raise
 
 
 def load_documents() -> list[RecordChunk]:
