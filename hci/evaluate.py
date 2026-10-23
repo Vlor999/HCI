@@ -68,14 +68,18 @@ def _score_retrieval(ids: list[str], expect: dict) -> tuple[float | None, bool]:
     return recall, not want - got and not set(expect.get("not_retrieved", [])) & got and ids[: len(first)] == first
 
 
+def _fold(text: str) -> str:
+    return text.lower().replace("\u2019", "'").replace("\u2018", "'")  # curly apostrophes, in answers or case files
+
+
 def _answer_ok(text: str, case: dict) -> bool:
     """Whether an answer meets the case's answer checks; an unanswerable case must refuse by default."""
-    expect, text = case["expect"], text.lower().replace("\u2019", "'")  # Claude writes curly apostrophes
+    expect, text = case["expect"], _fold(text)
     any_of = expect.get("answer_contains_any", REFUSAL_MARKERS if case.get("unanswerable") else [])
     return (
-        all(s.lower() in text for s in expect.get("answer_contains", []))
-        and (not any_of or any(s.lower() in text for s in any_of))
-        and not any(s.lower() in text for s in expect.get("answer_excludes", []))
+        all(_fold(s) in text for s in expect.get("answer_contains", []))
+        and (not any_of or any(_fold(s) in text for s in any_of))
+        and not any(_fold(s) in text for s in expect.get("answer_excludes", []))
     )
 
 

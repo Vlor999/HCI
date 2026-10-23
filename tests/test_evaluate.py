@@ -138,3 +138,15 @@ def test_unanswerable_without_judge_uses_retrieval_expectations(tmp_path):
     report = evaluate.run("cpu", None, answers=False, cases_dir=_make_cases_dir(tmp_path, UNANSWERABLE_CASE))
     # Assert
     assert report["retrieval_pass_rate"] == 0.0
+
+
+@pytest.mark.parametrize(
+    ("answer", "marker"),
+    [("I can’t say", "can't say"), ("I can‘t say", "can't say"), ("I can't say", "can’t say")],
+)
+def test_curly_apostrophes_match_straight_ones(answer, marker):
+    """Curly apostrophes match straight ones, in the answer and in the case strings."""
+    # Arrange
+    case = {"expect": {"answer_contains_any": [marker]}}
+    # Act / Assert
+    assert evaluate._answer_ok(answer, case)
