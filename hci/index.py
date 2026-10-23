@@ -4,16 +4,14 @@ import math
 import os
 import re
 from collections import Counter
-from collections.abc import Callable, Collection
+from collections.abc import Collection
 
 import numpy as np
 
 from hci.constants import BM25_B, BM25_K1, QUERY_PREFIX, RRF_K
-from hci.corpus import Chunk
+from hci.types import Embed, RecordChunk
 
 EMBED_MODEL = os.environ.get("HCI_EMBED_MODEL", "BAAI/bge-small-en-v1.5")
-
-Embed = Callable[[list[str]], np.ndarray]  # texts -> L2-normalised (n, d)
 
 
 def default_embedder() -> Embed:
@@ -31,7 +29,7 @@ def tokenize(text: str) -> list[str]:
 
 class Index:
     # ponytail: brute-force numpy scan, fine up to ~100k chunks; swap for faiss/sqlite-vec past that
-    def __init__(self, chunks: list[Chunk], embed: Embed):
+    def __init__(self, chunks: list[RecordChunk], embed: Embed):
         self.chunks, self.embed = chunks, embed
         self.vecs = embed([c.text for c in chunks])
         self.docs = [Counter(tokenize(c.text)) for c in chunks]
@@ -49,7 +47,7 @@ class Index:
             scores += idf * tf * (k1 + 1) / (tf + k1 * (1 - b + b * self.lens / avg))
         return scores
 
-    def search(self, query: str, k: int = 6, skip: Collection[str] = ()) -> list[Chunk]:
+    def search(self, query: str, k: int = 6, skip: Collection[str] = ()) -> list[RecordChunk]:
         dense = self.vecs @ self.embed([QUERY_PREFIX + query])[0]
         fused = np.zeros(len(self.chunks))
         for scores in (dense, self.bm25(query)):

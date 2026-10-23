@@ -28,13 +28,13 @@ def test_rag(tmp_path, monkeypatch):
     assert any(c.id == "manual-1" for c in top), [c.id for c in top]
 
     rag = RAG(embed=fake_embed, judge=False)
-    ctx = rag.retrieve("which path is fastest?", scenario=0)
+    ctx = rag.retrieve("which path is fastest?", scenario=0).chunks
     assert [c.id for c in ctx[:3]] == ["path-0-A", "path-0-B", "path-0-C"]  # current scenario pinned first
     assert len({c.id for c in ctx}) == len(ctx)
 
     rag.add_fact("Path B is flooded", scenario=0)
     assert json.loads(corpus.FACTS.read_text())[0]["text"] == "Path B is flooded"
-    assert any(c.source == "fact" for c in rag.retrieve("anything", scenario=0))
+    assert any(c.source == "fact" for c in rag.retrieve("anything", scenario=0).chunks)
 
     seen = {}
 

@@ -9,7 +9,7 @@ import os
 import httpx
 
 from hci.constants import JEV_ANSWERABLE_QUESTION, JEV_PASSAGE_QUESTION, JEV_URL
-from hci.corpus import Chunk
+from hci.types import RecordChunk
 
 MODEL = os.environ.get("HCI_JEV_MODEL", "jev-latest")
 KEEP = float(os.environ.get("HCI_JEV_KEEP", "0.5"))  # min P(relevant) to keep a passage
@@ -20,7 +20,7 @@ def enabled() -> bool:
     return bool(os.environ.get("TYPESAFE_API_KEY"))
 
 
-def request(question: str, chunks: list[Chunk]) -> dict:
+def request(question: str, chunks: list[RecordChunk]) -> dict:
     questions = {
         f"p{i}": {"type": "noul", "instructions": JEV_PASSAGE_QUESTION.format(key=f"p{i}")} for i in range(len(chunks))
     }
@@ -35,13 +35,13 @@ def request(question: str, chunks: list[Chunk]) -> dict:
     }
 
 
-def parse(answers: dict, chunks: list[Chunk]) -> tuple[set[str], bool]:
+def parse(answers: dict, chunks: list[RecordChunk]) -> tuple[set[str], bool]:
     """-> (ids of relevant chunks, is the question answerable)."""
     keep = {c.id for i, c in enumerate(chunks) if answers[f"p{i}"]["noul"] >= KEEP}
     return keep, answers["answerable"]["noul"] >= ANSWERABLE
 
 
-def judge(question: str, chunks: list[Chunk]) -> tuple[set[str], bool]:
+def judge(question: str, chunks: list[RecordChunk]) -> tuple[set[str], bool]:
     r = httpx.post(
         JEV_URL,
         json=request(question, chunks),

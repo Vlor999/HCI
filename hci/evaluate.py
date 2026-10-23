@@ -42,7 +42,7 @@ def run(provider: str | None, model: str | None, answers: bool = True) -> dict:
             expect, row = case["expect"], {"id": case["id"]}
 
             t0 = time.perf_counter()
-            ids = [c.id for c in rag.retrieve(case["question"], case.get("scenario"), case.get("history", []))]
+            ids = [c.id for c in rag.retrieve(case["question"], case.get("scenario"), case.get("history", [])).chunks]
             retrieve_t.append(time.perf_counter() - t0)
             want = expect.get("retrieved", [])
             row["recall"] = len(set(want) & set(ids)) / len(want) if want else None

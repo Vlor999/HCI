@@ -6,7 +6,7 @@ The model never writes memory by itself: add_context goes through `propose`, whi
 import json
 import os
 import sys
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Iterator, Sequence
 
 import anthropic
 from anthropic import beta_tool
@@ -14,9 +14,7 @@ from anthropic import beta_tool
 from hci import corpus, llm
 from hci.constants import AGENT_BETAS, AGENT_SYSTEM, CLAUDE_MODEL
 from hci.rag import RAG, status
-
-Propose = Callable[[str, int | None], str]  # (fact, scenario) -> tool result shown to the model
-Answer = Callable[..., Iterator[str]]  # (question, scenario=None, history=(), propose=reject)
+from hci.types import Answer, Propose
 
 
 def reject(text: str, scenario: int | None) -> str:
@@ -39,10 +37,10 @@ class Agent:
             """
             self.searches += 1
             ctx = self.rag.retrieve(query, scenario)
-            self.events.append(f"Found {len(ctx or [])} passages")
-            if not ctx:
+            self.events.append(f"Found {len(ctx.chunks)} passages")
+            if not ctx.chunks:
                 return "Nothing relevant in the records."
-            return "\n".join(f"[{self.searches}.{i}] ({c.source}) {c.text}" for i, c in enumerate(ctx, 1))
+            return "\n".join(f"[{self.searches}.{i}] ({c.source}) {c.text}" for i, c in enumerate(ctx.chunks, 1))
 
         @beta_tool
         def add_context(text: str, scenario: int | None = None) -> str:

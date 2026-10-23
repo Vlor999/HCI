@@ -2,19 +2,11 @@
 
 import json
 import re
-from dataclasses import dataclass
 
 from hci.constants import CORRECTIONS_DIR, DATA_DIR, EXPLANATIONS_FILE, FACTS_FILE, MANUAL_FILE, PATHS_FILE, Source
+from hci.types import RecordChunk
 
 FACTS = FACTS_FILE
-
-
-@dataclass(frozen=True)
-class Chunk:
-    id: str
-    text: str
-    source: Source
-    scenario: int | None = None
 
 
 def stamp() -> float:
@@ -56,16 +48,16 @@ def add_fact(text: str, scenario: int | None) -> None:
     FACTS.write_text(json.dumps(load_facts() + [{"text": text, "scenario": scenario}], indent=2))
 
 
-def load() -> list[Chunk]:
+def load() -> list[RecordChunk]:
     chunks = [
-        Chunk(f"path-{i}-{s['location']}", step_text(sc.get("description", f"#{i}"), s), Source.PATH, i)
+        RecordChunk(f"path-{i}-{s['location']}", step_text(sc.get("description", f"#{i}"), s), Source.PATH, i)
         for i, sc in enumerate(scenarios())
         for s in sc["steps"]
     ]
 
     manual = MANUAL_FILE.read_text()
     for n, section in enumerate(re.split(r"\n(?=\d+\. )", manual.strip())):
-        chunks.append(Chunk(f"manual-{n + 1}", "Robot manual. " + " ".join(section.split()), Source.MANUAL))
+        chunks.append(RecordChunk(f"manual-{n + 1}", "Robot manual. " + " ".join(section.split()), Source.MANUAL))
 
     for f in sorted(CORRECTIONS_DIR.glob("*.md")):
         text = f.read_text()
@@ -75,12 +67,16 @@ def load() -> list[Chunk]:
             question = f"Question: {q[1]} " if q else ""
             body = " ".join(sol[1].split())
             chunks.append(
-                Chunk(f"correction-{f.stem}", f"Past mistake. {question}Expected answer: {body}", Source.CORRECTION)
+                RecordChunk(
+                    f"correction-{f.stem}", f"Past mistake. {question}Expected answer: {body}", Source.CORRECTION
+                )
             )
 
     for n, ex in enumerate(json.loads(EXPLANATIONS_FILE.read_text())):
-        chunks.append(Chunk(f"example-{n}", f"Example explanation. Q: {ex['Input']} A: {ex['Output']}", Source.EXAMPLE))
+        chunks.append(
+            RecordChunk(f"example-{n}", f"Example explanation. Q: {ex['Input']} A: {ex['Output']}", Source.EXAMPLE)
+        )
 
     for n, fact in enumerate(load_facts()):
-        chunks.append(Chunk(f"fact-{n}", f"Operator update: {fact['text']}", Source.FACT, fact.get("scenario")))
+        chunks.append(RecordChunk(f"fact-{n}", f"Operator update: {fact['text']}", Source.FACT, fact.get("scenario")))
     return chunks

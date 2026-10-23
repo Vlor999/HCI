@@ -2,12 +2,11 @@
 
 import os
 import sys
-from collections.abc import Callable, Iterator
+from collections.abc import Iterator
 
 from hci.constants import LOCAL_MODELS
 from hci.device import backend, torch_device
-
-Generate = Callable[[str, str], Iterator[str]]
+from hci.types import Generate
 
 MAX_TOKENS = 1024
 

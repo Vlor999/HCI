@@ -4,8 +4,8 @@ from collections.abc import Iterator, Sequence
 
 from hci import corpus, jev
 from hci.constants import NOT_FOUND, STEP_MARKER, SYSTEM, Source
-from hci.index import Embed, Index, default_embedder
-from hci.llm import Generate
+from hci.index import Index, default_embedder
+from hci.types import Embed, Generate, RecordChunk, Retrieval
 
 
 def status(step: str) -> str:
@@ -33,9 +33,9 @@ class RAG:
 
     def retrieve(
         self, question: str, scenario: int | None = None, history: Sequence[tuple[str, str]] = (), k: int = 6
-    ) -> list[corpus.Chunk] | None:
+    ) -> Retrieval:
         """Pinned: the scenario's steps and facts, then facts that apply everywhere. Other scenarios are never searched.
-        None = not answerable."""
+        Not answerable (Jev) -> empty chunks, `answerable=False`."""
         if corpus.stamp() != self.stamp:
             self.reload()
         scoped = [c for c in self.chunks if c.source in (Source.PATH, Source.FACT)]
@@ -49,11 +49,11 @@ class RAG:
         if self.judge:
             keep, answerable = jev.judge(query, pinned + hits)
             if not answerable:
-                return None
+                return Retrieval([], answerable=False)
             hits = [c for c in hits if c.id in keep]
-        return pinned + hits
+        return Retrieval(pinned + hits)
 
-    def prompt(self, question: str, ctx: list[corpus.Chunk], history: Sequence[tuple[str, str]] = ()) -> str:
+    def prompt(self, question: str, ctx: list[RecordChunk], history: Sequence[tuple[str, str]] = ()) -> str:
         n = dict(zip((c.id for c in ctx), range(1, len(ctx) + 1)))
         passages = "\n".join(f"[{n[c.id]}] ({c.source}) {c.text}" for c in ctx if c.source != Source.FACT)
         updates = "\n".join(f"[{n[c.id]}] {c.text}" for c in ctx if c.source == Source.FACT)
@@ -72,11 +72,12 @@ class RAG:
         self, question: str, llm: Generate, scenario: int | None = None, history: Sequence[tuple[str, str]] = ()
     ) -> Iterator[str]:
         yield status("Searching the records")
-        ctx = self.retrieve(question, scenario, history)
-        if ctx is None:
+        retrieval = self.retrieve(question, scenario, history)
+        if not retrieval.answerable:
             yield status("Jev: the records don't answer this")
             yield NOT_FOUND
             return
+        ctx = retrieval.chunks
         yield status(f"{len(ctx)} passages in context" + (", filtered by Jev" if self.judge else ""))
         yield status("Writing the answer")
         yield from llm(SYSTEM, self.prompt(question, ctx, history))
