@@ -245,19 +245,27 @@ runner uses the real embedder (downloaded once). CI runs `uv sync --locked` then
 Each file in `tests/cases/` is a JSON list of cases. The format is defined in `tests/cases/schema.json`, and pytest
 validates every file against it. A case gives a question, an optional scenario, history and facts, and what to expect:
 chunk ids that must or must not be in the context (pytest checks that each one names an existing file and a real
-chunk), chunks that must come first, and words the answer must contain
-or must not contain. `xfail` marks a known weakness, and the case still runs.
+chunk), chunks that must come first, and words the answer must all contain, at least one of
+(`answer_contains_any`), or must not contain. `unanswerable` marks a question the records do not answer: the answer
+must refuse (it contains one of the refusal phrases of `hci/constants.py` and none of `answer_excludes`, which always
+wins). With `--jev`, such a case passes retrieval when Jev refuses rather than on the pinned chunks, so a pinning
+regression on it shows only in runs without the judge; when Jev refuses, the streamed `NOT_FOUND` is not scored as an
+answer, so one Jev decision counts once. `xfail` marks a known weakness, and the case still runs.
 
-`hci eval` on an M4 Pro (MLX, 45 cases):
+`hci eval` on an M4 Pro, 2026-10-23 at `f2c06c9` (45 cases, 21 with answer checks; with `--jev` the 4 out-of-scope
+cases Jev refused are scored on retrieval only, so 17 answers are checked):
 
-| Metric | Qwen3-4B (default) | Gemma 4 E4B (tested, not kept) |
-| --- | --- | --- |
-| Retrieval pass rate | 84 % (7 paraphrase misses marked `xfail`) | same |
-| Recall of expected chunks | 74 % | same |
-| Answer pass rate | 95 % | 81 % (before the Markdown prompt) |
-| Retrieval latency (p50) | 7 ms | 6 ms |
-| First token (p50) | 1.25 s | 0.8 s |
-| Generation | 85 tokens/s | 67 tokens/s |
+| Metric | Qwen3-4B (MLX, default) | Claude (`-p anthropic`) | Claude + Jev (`-p anthropic eval --jev`) |
+| --- | --- | --- | --- |
+| Retrieval pass rate | 84 % (7 paraphrase misses marked `xfail`) | 84 % | 84 % |
+| Recall of expected chunks | 74 % | 74 % | 74 % |
+| Answer pass rate | 95 % | 100 % | 100 % |
+| Retrieval latency (p50) | 7 ms | 7 ms | 246 ms |
+| First token (p50) | 1.5 s | 4.6 s | 5.0 s |
+| Generation | 84 tokens/s | streamed in chunks | streamed in chunks |
+
+Gemma 4 E4B was tested and not kept: same retrieval, 81 % answers (before the Markdown prompt), 0.8 s first token,
+67 tokens/s.
 
 The report and slides are in `doc/robot-explain-yourself/`. The first version (Ollama, no retrieval) is in the git
 history.

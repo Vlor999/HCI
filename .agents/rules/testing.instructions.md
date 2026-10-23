@@ -45,6 +45,6 @@ def test_rrf_ranks_shared_hit_first():
 ## JSON cases
 
 - Cases live in `tests/cases/*.json`, validated by `tests/cases/schema.json`. Each file is a list of objects:
-  - `id` (kebab-case), `question`, `expect` (required); `description`, `tags`, `scenario` (index or null), `history` (list of `[question, answer]`), `facts` (`{text, scenario}`, recorded before the question as `fact-0`, `fact-1`, ...), `xfail` (reason for a known failure).
-  - `expect` keys: `retrieved`, `not_retrieved`, `first` (chunk ids), `answer_contains`, `answer_excludes` (answer checks run in `hci eval` only, they need an LLM).
+  - `id` (kebab-case), `question`, `expect` (required); `description`, `tags`, `scenario` (index or null), `history` (list of `[question, answer]`), `facts` (`{text, scenario}`, recorded before the question as `fact-0`, `fact-1`, ...), `xfail` (reason for a known failure), `unanswerable` (out-of-scope: the answer must refuse; with `--jev`, retrieval passes iff Jev refuses).
+  - `expect` keys: `retrieved`, `not_retrieved`, `first` (chunk ids), `answer_contains`, `answer_contains_any`, `answer_excludes` (answer checks run in `hci eval` only, they need an LLM). `answer_excludes` holds only strings that prove the model answered, never words a refusal restates.
 - Add a case rather than a Python test when the check is "question X retrieves chunk Y".
