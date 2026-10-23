@@ -1,5 +1,6 @@
 """The pipeline: retrieve -> (Jev judge) -> grounded prompt -> generate."""
 
+import threading
 from collections.abc import Iterable, Iterator, Sequence
 
 from hci import corpus, jev
@@ -45,18 +46,26 @@ class ExplanationPipeline:
         """
         self.embed = embed or default_embedder()
         self.judge = jev.enabled() if judge is None else judge
+        self.reload_lock = threading.Lock()  # one reload at a time; a refresh waits for a running reload
         self.reload()
 
     def reload(self) -> None:
         """Reload the corpus from data/ and rebuild the index."""
-        self.stamp = corpus.stamp()
-        self.chunks = corpus.load()
-        self.index = HybridIndex(self.chunks, self.embed)
+        with self.reload_lock:
+            self._load()
 
     def refresh(self) -> None:
         """Reload the corpus if data/, the documents folder or the facts file changed since the last load."""
-        if corpus.stamp() != self.stamp:
-            self.reload()
+        with self.reload_lock:
+            if corpus.stamp() != self.stamp:
+                self._load()
+
+    def _load(self) -> None:
+        """Build chunks and index aside, then swap; the stamp moves only on success, so a failed load is retried."""
+        stamp = corpus.stamp()  # taken first: a change made during the load triggers the next one
+        chunks = corpus.load()
+        index = HybridIndex(chunks, self.embed)
+        self.chunks, self.index, self.stamp = chunks, index, stamp
 
     def add_fact(self, text: str, scenario: int | None = None) -> None:
         """Save an operator-approved fact and reindex.

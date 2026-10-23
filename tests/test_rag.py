@@ -1,5 +1,6 @@
 """Tests for hci.rag: pinning, scenario isolation, history, the Jev gate and the prompt."""
 
+import threading
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -134,3 +135,53 @@ def test_answer_streams_steps_then_llm_text(rag):
     assert text_only(pieces) == "Take A."
     assert all(p.startswith(STEP_MARKER) for p in pieces[:-1])
     assert llm.call_args.args[1].endswith("Question: why A?")
+
+
+class TestReload:
+    @pytest.fixture
+    def docs_dir(self, tmp_path, monkeypatch: pytest.MonkeyPatch):
+        """An empty temporary documents folder."""
+        monkeypatch.setenv("HCI_DOCUMENTS_DIR", str(tmp_path / "documents"))
+        get_settings.cache_clear()
+        (tmp_path / "documents").mkdir()
+        return tmp_path / "documents"
+
+    def test_failed_load_is_retried(self, docs_dir, fake_embed):
+        """A refresh whose load fails keeps the old stamp, so the next refresh indexes the new file."""
+        # Arrange
+        rag = ExplanationPipeline(embed=fake_embed, judge=False)
+        (docs_dir / "new.md").write_text("Path Q floods.")
+        with patch("hci.rag.corpus.load", side_effect=RuntimeError("disk")), pytest.raises(RuntimeError):
+            rag.refresh()
+        # Act
+        rag.refresh()
+        # Assert
+        assert any(c.id.endswith("new.md#1") for c in rag.chunks)
+
+    def test_refresh_waits_for_a_running_reload(self, docs_dir, fake_embed):
+        """A refresh during another reload waits for it instead of returning the old chunks."""
+        # Arrange
+        loading, entered, release = threading.Event(), threading.Event(), threading.Event()
+
+        def slow_embed(texts):
+            if loading.is_set() and not entered.is_set():  # only the first reload blocks
+                entered.set()
+                release.wait(5)
+            return fake_embed(texts)
+
+        rag = ExplanationPipeline(embed=slow_embed, judge=False)
+        (docs_dir / "new.md").write_text("Path Q floods.")
+        loading.set()
+        first = threading.Thread(target=rag.refresh)
+        first.start()
+        entered.wait(5)
+        second = threading.Thread(target=rag.refresh)
+        # Act
+        second.start()
+        second.join(0.2)
+        # Assert
+        assert second.is_alive()
+        release.set()
+        first.join(5)
+        second.join(5)
+        assert any(c.id.endswith("new.md#1") for c in rag.chunks)
