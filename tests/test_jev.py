@@ -164,7 +164,10 @@ class TestJevEvent:
         assert (event["input_tokens"], event["output_tokens"]) == (336, 39)
         assert (event["questions"], event["passages_kept"], event["passages_total"]) == (3, 1, 2)
         assert event["fallback"] is False
-        assert (event["cost_usd"], event["price_unknown"]) == (1.411e-05, False)  # 336 input tokens at the default price
+        assert (event["cost_usd"], event["price_unknown"]) == (
+            1.411e-05,
+            False,
+        )  # 336 input tokens at the default price
 
     def test_outage_logs_fallback_and_error_class(self, jev_key):
         """A Jev outage is logged as a fallback with the error class; every passage counts as kept."""
