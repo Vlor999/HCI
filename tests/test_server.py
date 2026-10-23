@@ -156,7 +156,7 @@ def test_fact_approval_does_not_wait_for_local_stream(client, monkeypatch, fake_
     stream.join(5)
 
 
-@pytest.mark.parametrize("path", ["/vendor/marked.min.js", "/vendor/purify.min.js"])
+@pytest.mark.parametrize("path", ["/vendor/marked.min.js", "/vendor/purify.min.js", "/vendor/chart.umd.min.js"])
 def test_markdown_libraries_are_served_locally(client: TestClient, path: str):
     """The page renders Markdown offline: marked and DOMPurify come from the server, not a CDN."""
     # Act
@@ -175,6 +175,35 @@ def test_answer_writes_a_server_request_event(client):
     (event,) = [json.loads(line) for line in get_settings().metrics_file.read_text().splitlines()]
     assert (event["kind"], event["source"], event["scenario"], event["question_chars"]) == ("request", "server", 1, 11)
     assert "why path A" not in json.dumps(event)
+
+
+class TestMetrics:
+    def test_metrics_needs_token(self, client):
+        """`/api/metrics` on `hci serve` is behind the same token as the API."""
+        # Act / Assert
+        assert client.get("/api/metrics").status_code == 401
+
+    def test_metrics_filters_by_since_and_limit(self, client):
+        """`since` keeps later events, `limit` the last N."""
+        # Arrange
+        for question in ("a", "b", "c"):
+            client.post("/api/ask", headers=AUTH, json={"question": question})
+        events = client.get("/api/metrics", headers=AUTH).json()
+        # Act
+        later = client.get("/api/metrics", headers=AUTH, params={"since": events[0]["ts"]}).json()
+        last = client.get("/api/metrics", headers=AUTH, params={"limit": 1}).json()
+        # Assert
+        assert len(events) == 3
+        assert later == [e for e in events if e["ts"] > events[0]["ts"]]
+        assert last == events[-1:]
+
+    def test_dashboard_page_is_served(self, client):
+        """`/dashboard` serves the page; its data needs the token, the page itself does not."""
+        # Act
+        response = client.get("/dashboard")
+        # Assert
+        assert response.status_code == 200
+        assert "/vendor/chart.umd.min.js" in response.text
 
 
 class TestDocuments:

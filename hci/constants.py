@@ -104,7 +104,8 @@ CORRECTIONS_DIR = DATA_DIR / "corrections"
 EXPLANATIONS_FILE = DATA_DIR / "explanations" / "sample_explanations.json"
 FACTS_FILE = DATA_DIR / "facts.json"
 WEB_PAGE = ROOT_DIR / "web" / "index.html"
-VENDOR_DIR = ROOT_DIR / "web" / "vendor"  # pinned marked + DOMPurify, served locally (works offline)
+DASHBOARD_PAGE = ROOT_DIR / "web" / "dashboard.html"
+VENDOR_DIR = ROOT_DIR / "web" / "vendor"  # pinned marked, DOMPurify and Chart.js, served locally (works offline)
 METRICS_FILE = ROOT_DIR / "logs" / "metrics.jsonl"
 CASES_DIR = ROOT_DIR / "tests" / "cases"
 
@@ -139,6 +140,34 @@ class MetricSource(StrEnum):
     SERVER = "server"
     EVAL = "eval"
 
+
+METRICS_DEFAULT_LIMIT = 2000  # events returned by `/api/metrics` when the page gives no limit
+METRICS_MAX_LIMIT = 20000
+SERVER_START_WAIT_S = 10  # `hci dashboard --open` waits this long for the server to listen before opening the browser
+
+# --- Dashboard service (always-on `hci-dashboard`) ---------------------------
+
+DASHBOARD_SCRIPT = "hci-dashboard"  # light entry point next to `hci` in the venv: no model, embedder or RAG
+DASHBOARD_LABEL = "io.github.vlor999.hci-dashboard"  # launchd label and plist name
+DASHBOARD_LOG = ROOT_DIR / "logs" / "dashboard.log"
+LAUNCH_AGENTS_DIR = Path.home() / "Library" / "LaunchAgents"
+SYSTEMD_UNIT_NAME = "hci-dashboard.service"
+SYSTEMD_UNIT = """[Unit]
+Description=HCI metrics dashboard
+
+[Service]
+ExecStart={program}
+WorkingDirectory={root}
+Restart=always
+StandardOutput=append:{log}
+StandardError=append:{log}
+
+[Install]
+WantedBy=default.target
+"""
+SYSTEMD_HELP = """Save this as ~/.config/systemd/user/{unit}, then:
+  systemctl --user daemon-reload && systemctl --user enable --now {unit}
+Status: systemctl --user status {unit}. Remove: systemctl --user disable --now {unit}, then delete the file."""
 
 # --- agent/server ------------------------------------------------------------
 

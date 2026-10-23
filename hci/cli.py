@@ -9,7 +9,7 @@ from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import CompleteEvent, Completer, Completion, FuzzyWordCompleter
 from prompt_toolkit.document import Document
 
-from hci import corpus, evaluate, metrics, server
+from hci import corpus, dashboard, evaluate, metrics, server
 from hci.agent import answerer
 from hci.config import get_settings
 from hci.constants import COMMANDS, STEP_MARKER, MetricSource
@@ -209,12 +209,25 @@ def _serve(args: argparse.Namespace) -> None:
     server.run(args.host, args.port)
 
 
+def _dashboard(args: argparse.Namespace) -> None:
+    """`hci dashboard`: serve the metrics dashboard, or manage its always-on service."""
+    if args.install:
+        dashboard.install()
+    elif args.uninstall:
+        dashboard.uninstall()
+    elif args.status:
+        dashboard.status()
+    else:
+        dashboard.run(args.host, args.port, open_browser=args.open)
+
+
 HANDLERS: dict[str, Callable[[argparse.Namespace], None]] = {
     "ask": _ask,
     "chat": _chat,
     "fact": _fact,
     "eval": _eval,
     "serve": _serve,
+    "dashboard": _dashboard,
 }
 
 
@@ -238,7 +251,19 @@ def build_parser() -> argparse.ArgumentParser:
     serve = sub.add_parser("serve", help="HTTP API + phone web app")
     serve.add_argument("--host", default=get_settings().host)
     serve.add_argument("--port", type=int, default=get_settings().port)
+    _add_dashboard_parser(sub.add_parser("dashboard", help="metrics dashboard (light server, no model loaded)"))
     return parser
+
+
+def _add_dashboard_parser(parser: argparse.ArgumentParser) -> None:
+    """Options of `hci dashboard`: where to serve, open the browser, or manage the always-on service."""
+    parser.add_argument("--host", default=get_settings().dashboard_host)
+    parser.add_argument("--port", type=int, default=get_settings().dashboard_port)
+    parser.add_argument("--open", action="store_true", help="open the dashboard in the browser")
+    service = parser.add_mutually_exclusive_group()
+    service.add_argument("--install", action="store_true", help="keep it running from login (macOS LaunchAgent)")
+    service.add_argument("--uninstall", action="store_true", help="stop it and remove the LaunchAgent")
+    service.add_argument("--status", action="store_true", help="say whether the always-on dashboard runs")
 
 
 def main() -> None:

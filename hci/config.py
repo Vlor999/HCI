@@ -75,6 +75,10 @@ class Settings(BaseSettings):
     metrics_log_questions: bool = Field(
         default=False, description="Also log the question text in request events; off by default, only its length."
     )
+    dashboard_host: str = Field(
+        default="127.0.0.1", description="`hci dashboard` bind address; a non-loopback address requires the token."
+    )
+    dashboard_port: int = Field(default=8790, description="`hci dashboard` port.")
 
     # --- agent/server ---
     anthropic_api_key: SecretStr | None = Field(

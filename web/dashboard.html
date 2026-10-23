@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f1a14">
+<title>HCI Metrics</title>
+<style>
+  :root { --bg: #f6f7f4; --fg: #17201a; --muted: #5d6a61; --card: #fff; --line: #d9ded8; --accent: #2f7d4f;
+          --err: #c0392b; --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4; --s6: #008300;
+          --s7: #6250d6; --s8: #e34948; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0f1a14; --fg: #e6ece7; --muted: #9aa89e; --card: #18251d; --line: #2a3a30; --accent: #5cc58a;
+            --err: #e66767; --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300;
+            --s7: #9085e9; --s8: #e66767; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.45 -apple-system, system-ui, sans-serif;
+         padding: env(safe-area-inset-top) 16px calc(env(safe-area-inset-bottom) + 16px); }
+  h1 { font-size: 1.25rem; margin: 16px 0 4px; }
+  h2 { font-size: .95rem; margin: 0 0 8px; }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0 12px; }
+  select { font: inherit; color: inherit; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px; }
+  small, .muted { color: var(--muted); }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; margin-bottom: 12px; }
+  .tile { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+  .tile .v { font-size: 1.35rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .tile .l { color: var(--muted); font-size: .8rem; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr)); gap: 12px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; min-width: 0; }
+  .chart { position: relative; height: 240px; }
+  .scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: .82rem; font-variant-numeric: tabular-nums; }
+  th, td { border-bottom: 1px solid var(--line); padding: 5px 6px; text-align: left; white-space: nowrap; }
+  th { color: var(--muted); font-weight: 600; }
+  td.num, th.num { text-align: right; }
+  .err { color: var(--err); }
+  .wide { grid-column: 1 / -1; }
+</style>
+</head>
+<body>
+<h1>HCI Metrics</h1>
+<div class="bar">
+  <select id="source" aria-label="Source">
+    <option value="">All sources</option><option value="cli">CLI</option><option value="server">Server</option>
+    <option value="eval">Eval</option>
+  </select>
+  <select id="window" aria-label="Time window">
+    <option value="3600">Last hour</option><option value="86400" selected>Last 24 h</option>
+    <option value="604800">Last 7 days</option><option value="0">Everything</option>
+  </select>
+  <small id="status" role="status"></small>
+</div>
+<div class="tiles" id="tiles"></div>
+<div class="grid">
+  <div class="card"><h2>Time to first token (ms), per request</h2><div class="chart"><canvas id="ttft"></canvas></div></div>
+  <div class="card"><h2>Time to first token distribution, per model</h2><div class="chart"><canvas id="ttftDist"></canvas></div></div>
+  <div class="card"><h2>Inter-token latency (ms): p50 and p95 per request</h2><div class="chart"><canvas id="itl"></canvas></div></div>
+  <div class="card"><h2>Generation speed (tokens/s), per request</h2><div class="chart"><canvas id="tps"></canvas></div></div>
+  <div class="card"><h2>Claude tokens per request (last 40)</h2><div class="chart"><canvas id="claude"></canvas></div></div>
+  <div class="card"><h2>Jev latency (ms): total and network</h2><div class="chart"><canvas id="jev"></canvas></div></div>
+  <div class="card"><h2>Retrieval latency (ms), Jev included</h2><div class="chart"><canvas id="retrieval"></canvas></div></div>
+  <div class="card"><h2>Agent tools</h2><div class="scroll"><table id="tools"></table></div></div>
+  <div class="card wide"><h2>Last requests</h2><div class="scroll"><table id="requests"></table></div></div>
+</div>
+<script src="/vendor/chart.umd.min.js"></script>
+<script>
+  if (location.hash.length > 1) {
+    try { localStorage.setItem("token", location.hash.slice(1)); } catch {}
+    history.replaceState(null, "", location.pathname);
+  }
+  let token = ""; try { token = localStorage.getItem("token") || ""; } catch {}
+  const $ = id => document.getElementById(id);
+  const POLL_MS = 3000, KEEP = 20000, LAST_REQUESTS = 25, CLAUDE_REQUESTS = 40;
+  const TTFT_BINS = [250, 500, 1000, 2000, 4000, 8000];  // ms upper bounds; the last bin is open
+  let events = [], lastTs = null;
+  const charts = {};
+
+  const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  const series = i => css(`--s${(i % 8) + 1}`);
+  const fmt = (v, d = 0) => v === null || v === undefined ? "–" : Number(v).toLocaleString(undefined, { maximumFractionDigits: d });
+  const clock = ts => new Date(ts * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  const sum = (xs, f) => xs.reduce((a, x) => a + (f(x) || 0), 0);
+  const pct = (xs, q) => {
+    if (!xs.length) return null;
+    const s = [...xs].sort((a, b) => a - b), r = (s.length - 1) * q / 100, lo = Math.floor(r);
+    return s[lo] + (s[Math.min(lo + 1, s.length - 1)] - s[lo]) * (r - lo);
+  };
+  const modelOf = e => `${e.provider || "?"} · ${e.model || "?"}`;
+
+  function visible() {
+    const source = $("source").value, win = Number($("window").value), since = Date.now() / 1000 - win;
+    return events.filter(e => (!source || e.source === source) && (!win || e.ts >= since));
+  }
+
+  function baseOptions(xTime) {
+    const grid = css("--line"), ink = css("--muted");
+    return {
+      responsive: true, maintainAspectRatio: false, animation: false, parsing: xTime ? false : true,
+      interaction: { mode: "nearest", intersect: false },
+      plugins: { legend: { labels: { color: ink, boxWidth: 10, boxHeight: 10 } },
+                 tooltip: { callbacks: xTime ? { title: items => items.length ? clock(items[0].parsed.x) : "" } : {} } },
+      scales: {
+        x: xTime ? { type: "linear", ticks: { color: ink, maxTicksLimit: 5, callback: v => clock(v) }, grid: { color: grid } }
+                 : { ticks: { color: ink }, grid: { display: false } },
+        y: { beginAtZero: true, ticks: { color: ink }, grid: { color: grid } },
+      },
+    };
+  }
+
+  function draw(id, type, data, options) {
+    if (charts[id]) { charts[id].data = data; charts[id].update("none"); return; }
+    charts[id] = new Chart($(id), { type, data, options });
+  }
+
+  function timeSeries(rows, key, groupBy) {
+    const groups = new Map();
+    rows.filter(r => r[key] !== null && r[key] !== undefined).forEach(r => {
+      const g = groupBy(r); if (!groups.has(g)) groups.set(g, []);
+      groups.get(g).push({ x: r.ts, y: r[key] });
+    });
+    return [...groups.entries()].map(([label, data]) => ({ label, data }));
+  }
+
+  function lineDatasets(sets, colorKeys) {
+    return sets.map(s => {
+      const c = series(colorKeys.indexOf(s.label));
+      return { ...s, borderColor: c, backgroundColor: c, borderWidth: 2, pointRadius: 3, showLine: true, tension: 0 };
+    });
+  }
+
+  function tiles(requests, jev, turns) {
+    const claude = requests.filter(r => r.provider === "anthropic");
+    const errors = requests.filter(r => r.error).length;
+    const fallbacks = jev.filter(j => j.fallback).length + requests.filter(r => r.fallback_model).length;
+    const items = [
+      ["Requests", fmt(requests.length)],
+      ["TTFT p50 (ms)", fmt(pct(requests.map(r => r.ttft_ms).filter(v => v != null), 50))],
+      ["TTFT p95 (ms)", fmt(pct(requests.map(r => r.ttft_ms).filter(v => v != null), 95))],
+      ["Errors", fmt(errors), errors > 0],
+      ["Fallbacks (Jev + Claude)", fmt(fallbacks), fallbacks > 0],
+      ["Refusals", fmt(requests.filter(r => r.refusal).length)],
+      ["Claude input tokens", fmt(sum(claude, r => r.input_tokens))],
+      ["Claude output tokens", fmt(sum(claude, r => r.output_tokens))],
+      ["Claude cache write", fmt(sum(claude, r => r.cache_creation_input_tokens))],
+      ["Claude cache read", fmt(sum(claude, r => r.cache_read_input_tokens))],
+      ["Claude turns", fmt(turns.length)],
+      ["Jev calls", fmt(jev.length)],
+      ["Jev tokens in / out", `${fmt(sum(jev, j => j.input_tokens))} / ${fmt(sum(jev, j => j.output_tokens))}`],
+      ["Jev p50 (ms)", fmt(pct(jev.map(j => j.latency_ms), 50))],
+    ];
+    $("tiles").replaceChildren(...items.map(([label, value, bad]) => {
+      const t = document.createElement("div"), v = document.createElement("div"), l = document.createElement("div");
+      t.className = "tile"; v.className = "v" + (bad ? " err" : ""); l.className = "l";
+      v.textContent = value; l.textContent = label; t.append(v, l); return t;
+    }));
+  }
+
+  function ttftCharts(requests, models) {
+    draw("ttft", "scatter", { datasets: lineDatasets(timeSeries(requests, "ttft_ms", modelOf), models) }, baseOptions(true));
+    const labels = TTFT_BINS.map((b, i) => `≤ ${b >= 1000 ? b / 1000 + " s" : b + " ms"}`).concat(`> ${TTFT_BINS.at(-1) / 1000} s`);
+    const datasets = models.map((m, i) => {
+      const counts = labels.map(() => 0);
+      requests.filter(r => modelOf(r) === m && r.ttft_ms != null).forEach(r => {
+        const bin = TTFT_BINS.findIndex(b => r.ttft_ms <= b); counts[bin < 0 ? TTFT_BINS.length : bin]++;
+      });
+      return { label: m, data: counts, backgroundColor: series(i), borderRadius: 4, borderColor: css("--card"), borderWidth: 1 };
+    });
+    draw("ttftDist", "bar", { labels, datasets }, baseOptions(false));
+  }
+
+  function itlChart(requests) {
+    const sets = [{ label: "p50", data: [] }, { label: "p95", data: [] }];
+    requests.forEach(r => {
+      if (r.itl_p50_ms != null) sets[0].data.push({ x: r.ts, y: r.itl_p50_ms });
+      if (r.itl_p95_ms != null) sets[1].data.push({ x: r.ts, y: r.itl_p95_ms });
+    });
+    draw("itl", "scatter", { datasets: lineDatasets(sets, ["p50", "p95"]) }, baseOptions(true));
+  }
+
+  function claudeChart(requests) {
+    const rows = requests.filter(r => r.provider === "anthropic").slice(-CLAUDE_REQUESTS);
+    const parts = [["input", "input_tokens"], ["output", "output_tokens"], ["cache write", "cache_creation_input_tokens"],
+                   ["cache read", "cache_read_input_tokens"]];
+    const datasets = parts.map(([label, key], i) => ({
+      label, data: rows.map(r => r[key] || 0), backgroundColor: series(i), borderColor: css("--card"), borderWidth: 1,
+    }));
+    const options = baseOptions(false);
+    options.scales.x.stacked = options.scales.y.stacked = true;
+    draw("claude", "bar", { labels: rows.map(r => clock(r.ts)), datasets }, options);
+  }
+
+  function toolTable(tools) {
+    const by = new Map();
+    tools.forEach(t => { if (!by.has(t.tool)) by.set(t.tool, []); by.get(t.tool).push(t); });
+    const rows = [...by.entries()].sort((a, b) => b[1].length - a[1].length).map(([name, calls]) => [
+      name, fmt(calls.length), fmt(calls.filter(c => !c.ok).length), fmt(pct(calls.map(c => c.duration_ms), 50), 1),
+      fmt(pct(calls.map(c => c.duration_ms), 95), 1), fmt(sum(calls, c => c.passages) / calls.length, 1),
+    ]);
+    table("tools", ["Tool", "Calls", "Failed", "p50 ms", "p95 ms", "Passages / call"], rows, "No tool calls (agent mode only).");
+  }
+
+  function requestTable(requests) {
+    const rows = requests.slice(-LAST_REQUESTS).reverse().map(r => [
+      clock(r.ts), r.source || "", modelOf(r), fmt(r.ttft_ms), fmt(r.total_ms), fmt(r.itl_p50_ms, 1), fmt(r.itl_p95_ms, 1),
+      fmt(r.tokens_per_s, 1), fmt(r.input_tokens), fmt(r.output_tokens), r.stop_reason || "",
+      r.error || (r.refusal ? "refusal" : "") || (r.fallback_model ? "fallback " + r.fallback_model : ""),
+    ]);
+    table("requests", ["Time", "Source", "Model", "TTFT", "Total", "ITL p50", "ITL p95", "tok/s", "In", "Out", "Stop", "Issue"],
+          rows, "No requests yet: ask a question with `hci ask`, `hci chat`, the phone or `hci eval`.");
+  }
+
+  function table(id, head, rows, empty) {
+    const el = $(id), tr = document.createElement("tr");
+    head.forEach((h, i) => { const th = document.createElement("th"); th.textContent = h; if (i > 2) th.className = "num"; tr.append(th); });
+    const body = rows.map(cells => {
+      const row = document.createElement("tr");
+      cells.forEach((c, i) => { const td = document.createElement("td"); td.textContent = c; if (i > 2) td.className = "num"; row.append(td); });
+      return row;
+    });
+    if (!rows.length) {
+      const row = document.createElement("tr"), td = document.createElement("td");
+      td.colSpan = head.length; td.className = "muted"; td.textContent = empty; row.append(td); body.push(row);
+    }
+    el.replaceChildren(tr, ...body);
+  }
+
+  function render() {
+    const shown = visible(), of = kind => shown.filter(e => e.kind === kind);
+    const requests = of("request"), jev = of("jev"), retrievals = of("retrieval");
+    const models = [...new Set(requests.map(modelOf))].sort();
+    tiles(requests, jev, of("model_turn"));
+    ttftCharts(requests, models);
+    itlChart(requests);
+    draw("tps", "scatter", { datasets: lineDatasets(timeSeries(requests, "tokens_per_s", modelOf), models) }, baseOptions(true));
+    claudeChart(requests);
+    const jevSets = [{ label: "total", data: jev.map(j => ({ x: j.ts, y: j.latency_ms })) },
+                     { label: "network", data: jev.filter(j => j.network_ms != null).map(j => ({ x: j.ts, y: j.network_ms })) }];
+    draw("jev", "scatter", { datasets: lineDatasets(jevSets, ["total", "network"]) }, baseOptions(true));
+    const judged = r => r.judged ? "with Jev" : "without Jev";
+    draw("retrieval", "scatter", { datasets: lineDatasets(timeSeries(retrievals, "latency_ms", judged), ["without Jev", "with Jev"]) },
+         baseOptions(true));
+    toolTable(of("tool"));
+    requestTable(requests);
+  }
+
+  async function poll() {
+    try {
+      const query = lastTs === null ? "" : `?since=${lastTs}`;
+      const r = await fetch("/api/metrics" + query, { headers: { "Authorization": "Bearer " + token } });
+      if (r.status === 401) throw new Error("Open the dashboard link printed by `hci serve` or `hci dashboard`.");
+      if (!r.ok) throw new Error(`Could not load metrics (HTTP ${r.status}).`);
+      const fresh = await r.json();
+      if (fresh.length) { events = events.concat(fresh).slice(-KEEP); lastTs = fresh.at(-1).ts; }
+      if (fresh.length || !charts.ttft) render();
+      $("status").classList.remove("err");
+      $("status").textContent = `Live · ${events.length} events · updated ${clock(Date.now() / 1000)}`;
+    } catch (e) {
+      $("status").classList.add("err");
+      $("status").textContent = e instanceof TypeError ? "Server unreachable, retrying…" : String(e.message || e);
+    }
+    setTimeout(poll, POLL_MS);
+  }
+
+  $("source").onchange = $("window").onchange = render;
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+    Object.values(charts).forEach(c => c.destroy()); for (const k in charts) delete charts[k]; render();
+  });
+  if (window.Chart) poll(); else $("status").textContent = "Chart.js missing from /vendor.";
+</script>
+</body>
+</html>
