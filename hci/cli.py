@@ -213,13 +213,11 @@ def _serve(args: argparse.Namespace) -> None:
 
 
 def _dashboard(args: argparse.Namespace) -> None:
-    """`hci dashboard`: serve the metrics dashboard, or manage its always-on service."""
-    if args.install:
-        dashboard.install()
-    elif args.uninstall:
-        dashboard.uninstall()
-    elif args.status:
-        dashboard.status()
+    """`hci dashboard`: serve the metrics dashboard, or manage its always-on service (exits non-zero on failure)."""
+    if args.install or args.uninstall or args.status:
+        action = dashboard.install if args.install else dashboard.uninstall if args.uninstall else dashboard.status
+        if code := action():
+            raise SystemExit(code)
     else:
         dashboard.run(args.host, args.port, open_browser=args.open)
 

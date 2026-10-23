@@ -14,10 +14,11 @@ import threading
 import time
 import webbrowser
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import uvicorn
-from fastapi import Depends, FastAPI, Query
-from fastapi.responses import FileResponse
+from fastapi import Depends, FastAPI, Query, Request, Response
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from hci import metrics
@@ -93,8 +94,25 @@ def is_loopback(host: str) -> bool:
         return host == "localhost"
 
 
+async def loopback_host_only(request: Request, call_next) -> Response:
+    """Refuse requests whose `Host` is not a loopback name, so a web page cannot read the tokenless loopback
+    dashboard through DNS rebinding (its own domain resolved to 127.0.0.1).
+
+    Args:
+        request: The incoming request.
+        call_next: The rest of the app.
+
+    Returns:
+        A 400 response, or the app's response.
+    """
+    hostname = urlsplit("//" + request.headers.get("host", "")).hostname
+    if not hostname or not is_loopback(hostname):
+        return JSONResponse({"detail": "This dashboard only answers to localhost / 127.0.0.1."}, 400)
+    return await call_next(request)
+
+
 def build_app(host: str) -> FastAPI:
-    """The dashboard app; the token is required unless it binds to loopback.
+    """The dashboard app: tokenless but loopback `Host` only on a loopback address, token-checked otherwise.
 
     Args:
         host: The bind address.
@@ -104,8 +122,27 @@ def build_app(host: str) -> FastAPI:
     """
     app = FastAPI(title="HCI metrics dashboard")
     app.mount("/vendor", StaticFiles(directory=VENDOR_DIR), name="vendor")
-    add_routes(app, require_token=not is_loopback(host))
+    loopback = is_loopback(host)
+    add_routes(app, require_token=not loopback)
+    if loopback:
+        app.middleware("http")(loopback_host_only)
     return app
+
+
+def dashboard_url(host: str, port: int, with_token: bool) -> str:
+    """The dashboard URL for a bind address.
+
+    Args:
+        host: Bind address; 0.0.0.0 becomes 127.0.0.1.
+        port: Port.
+        with_token: Append the token (it is only needed off loopback).
+
+    Returns:
+        The URL.
+    """
+    local = "127.0.0.1" if host == "0.0.0.0" else host
+    token = f"#{get_settings().token}" if with_token and not is_loopback(host) else ""
+    return f"http://{local}:{port}/dashboard{token}"
 
 
 def _open_when_listening(host: str, port: int, url: str) -> None:
@@ -121,17 +158,18 @@ def _open_when_listening(host: str, port: int, url: str) -> None:
 
 
 def run(host: str, port: int, open_browser: bool = False) -> None:
-    """Serve the dashboard and print its URL (with the token when the host is not loopback).
+    """Serve the dashboard and print its URL, with the token off loopback only on a terminal (never into a log).
 
     Args:
         host: Bind address.
         port: Port.
         open_browser: Open the URL in this machine's browser once the server listens.
     """
-    local = "127.0.0.1" if host == "0.0.0.0" else host
-    url = f"http://{local}:{port}/dashboard" + ("" if is_loopback(host) else f"#{get_settings().token}")
-    print(f"Metrics dashboard: {url}")
+    url = dashboard_url(host, port, with_token=True)
+    shown = url if sys.stdout.isatty() else dashboard_url(host, port, with_token=False)
+    print(f"Metrics dashboard: {shown}" + ("" if shown == url else " (add #<HCI_TOKEN>)"))
     if open_browser:
+        local = urlsplit(url).hostname or host
         threading.Thread(target=_open_when_listening, args=(local, port, url), daemon=True).start()
     uvicorn.run(build_app(host), host=host, port=port)
 
@@ -166,6 +204,8 @@ def launch_agent_path() -> Path:
 def launch_agent_plist(script: Path) -> bytes:
     """The LaunchAgent that keeps the dashboard running from login, with the current dashboard settings.
 
+    Off loopback it carries `HCI_TOKEN`, so the token survives restarts (the plist is written owner-only).
+
     Args:
         script: Absolute path to `hci-dashboard`.
 
@@ -178,6 +218,8 @@ def launch_agent_plist(script: Path) -> bytes:
         "HCI_DASHBOARD_PORT": str(settings.dashboard_port),
         "HCI_METRICS_FILE": str(settings.metrics_file),
     }
+    if not is_loopback(settings.dashboard_host):
+        environment["HCI_TOKEN"] = settings.token
     return plistlib.dumps(
         {
             "Label": DASHBOARD_LABEL,
@@ -212,41 +254,77 @@ def _domain() -> str:
     return f"gui/{os.getuid()}"
 
 
-def _print_systemd() -> None:
+def _print_systemd() -> int:
     print(systemd_unit(program()))
     print(SYSTEMD_HELP.format(unit=SYSTEMD_UNIT_NAME))
+    return 0
 
 
-def install() -> None:
-    """Install and start the always-on dashboard: a LaunchAgent on macOS; elsewhere, print a systemd user unit."""
+def _bootstrap(path: Path) -> subprocess.CompletedProcess[str]:
+    """Load the agent; if launchd refuses (e.g. an old copy still loaded), boot it out and try once more."""
+    result = _launchctl("bootstrap", _domain(), str(path))
+    if result.returncode != 0:
+        _launchctl("bootout", f"{_domain()}/{DASHBOARD_LABEL}")
+        result = _launchctl("bootstrap", _domain(), str(path))
+    return result
+
+
+def install() -> int:
+    """Install and start the always-on dashboard: a LaunchAgent on macOS; elsewhere, print a systemd user unit.
+
+    Returns:
+        The exit code: 1 when a non-loopback host has no `HCI_TOKEN` or launchd refuses the agent.
+    """
     if sys.platform != "darwin":
         return _print_systemd()
+    settings = get_settings()
+    if not is_loopback(settings.dashboard_host) and "token" not in settings.model_fields_set:
+        print(
+            f"HCI_DASHBOARD_HOST={settings.dashboard_host} is not loopback: set HCI_TOKEN so the always-on "
+            "dashboard keeps one token across restarts, then run --install again."
+        )
+        return 1
     _launchctl("bootout", f"{_domain()}/{DASHBOARD_LABEL}")  # reinstall cleanly; fails harmlessly if not loaded
     DASHBOARD_LOG.parent.mkdir(parents=True, exist_ok=True)
     path = launch_agent_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(launch_agent_plist(program()))
-    result = _launchctl("bootstrap", _domain(), str(path))
-    port = get_settings().dashboard_port
-    print(f"Installed {path}" if result.returncode == 0 else f"launchctl bootstrap failed: {result.stderr.strip()}")
-    print(f"Dashboard: http://127.0.0.1:{port}/dashboard (log: {DASHBOARD_LOG})")
+    path.chmod(0o600)  # may hold HCI_TOKEN
+    result = _bootstrap(path)
+    if result.returncode != 0:
+        print(f"launchctl bootstrap failed: {result.stderr.strip()}")
+        return 1
+    url = dashboard_url(settings.dashboard_host, settings.dashboard_port, with_token=False)
+    print(f"Installed {path}\nDashboard: {url} (log: {DASHBOARD_LOG})")
+    return 0
 
 
-def uninstall() -> None:
-    """Stop the always-on dashboard and remove its LaunchAgent; elsewhere, print the systemd commands."""
+def uninstall() -> int:
+    """Stop the always-on dashboard and remove its LaunchAgent; elsewhere, print the systemd commands.
+
+    Returns:
+        The exit code.
+    """
     if sys.platform != "darwin":
         return _print_systemd()
     _launchctl("bootout", f"{_domain()}/{DASHBOARD_LABEL}")
     launch_agent_path().unlink(missing_ok=True)
     print(f"Removed {DASHBOARD_LABEL}")
+    return 0
 
 
-def status() -> None:
-    """Say whether the always-on dashboard is installed and running."""
+def status() -> int:
+    """Say whether the always-on dashboard is installed and running.
+
+    Returns:
+        The exit code: 0 when it runs, 1 otherwise.
+    """
     if sys.platform != "darwin":
         return _print_systemd()
     result = _launchctl("print", f"{_domain()}/{DASHBOARD_LABEL}")
+    running = result.returncode == 0 and "state = running" in result.stdout
     if result.returncode != 0:
         print("Not running" + (" (plist present, not loaded)" if launch_agent_path().exists() else ""))
     else:
-        print("Running" if "state = running" in result.stdout else "Loaded, not running (see the log)")
+        print("Running" if running else "Loaded, not running (see the log)")
+    return 0 if running else 1

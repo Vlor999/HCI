@@ -143,13 +143,16 @@ uv run hci dashboard --open   # light server on http://127.0.0.1:8790/dashboard:
 ```
 
 It reads only the JSONL file, so it can run while nothing else does, and starts in about 0.3 s. On `127.0.0.1` (the
-default, `HCI_DASHBOARD_HOST`) no token is needed; on any other address `/api/metrics` needs the API token and the
-printed link carries it. `hci serve` also serves `/dashboard`, behind its token (link printed at startup).
+default, `HCI_DASHBOARD_HOST`) no token is needed, and only a loopback `Host` (`127.0.0.1`, `localhost`, `[::1]`) is
+answered, so a web page cannot read it through DNS rebinding. On any other address `/api/metrics` needs the API
+token; the printed link carries it on a terminal, never in a log. `hci serve` also serves `/dashboard`, behind its token (link printed at startup).
 `GET /api/metrics?since=<ts>&limit=<n>` returns the events.
 
 Keep it always on (macOS): `uv run hci dashboard --install` writes the LaunchAgent
 `~/Library/LaunchAgents/io.github.vlor999.hci-dashboard.plist` (runs the venv's `hci-dashboard` at login, restarts it,
-logs to `logs/dashboard.log`) and loads it. `--status` says whether it runs, `--uninstall` stops and removes it. On
+logs to `logs/dashboard.log`) and loads it, retrying once if launchd refuses; it exits non-zero on failure. For a
+non-loopback `HCI_DASHBOARD_HOST`, set `HCI_TOKEN` first: it is written into the plist (owner-only), so the token
+stays the same across restarts; without it `--install` refuses. `--status` says whether it runs, `--uninstall` stops and removes it. On
 Linux, `--install` prints the equivalent systemd user unit and the commands to enable it.
 
 Plot from the JSONL without the dashboard:
