@@ -19,11 +19,14 @@ from hci import corpus, llm
 from hci.config import get_settings
 from hci.constants import (
     AGENT_BETAS,
+    AGENT_ERRORS,
+    AGENT_NO_KEY,
     AGENT_NO_OPERATOR,
     AGENT_NO_SCENARIO_NOTE,
     AGENT_NOTHING_FOUND,
     AGENT_REFUSAL,
     AGENT_SCENARIO_NOTE,
+    AGENT_STEP_ERROR,
     AGENT_STEP_FOUND,
     AGENT_STEP_REASONING,
     AGENT_STEP_THINKING,
@@ -124,7 +127,7 @@ class ClaudeMemoryAgent:
         history: Sequence[tuple[str, str]] = (),
         propose: Propose = reject,
     ) -> Iterator[str]:
-        """Stream an answer.
+        """Stream an answer. Anthropic errors end the stream with a message and an error step.
 
         Args:
             question: the user's question.
@@ -135,8 +138,17 @@ class ClaudeMemoryAgent:
         Yields:
             Answer text pieces and step lines.
         """
+        if self.client.api_key is None:
+            yield status(AGENT_STEP_ERROR)
+            yield AGENT_NO_KEY
+            return
         yield status(AGENT_STEP_THINKING)
-        yield from self._stream(AgentRun(self.rag, propose), build_messages(question, scenario, history))
+        try:
+            yield from self._stream(AgentRun(self.rag, propose), build_messages(question, scenario, history))
+        except (anthropic.APIConnectionError, anthropic.APIStatusError) as exc:
+            logger.error("Anthropic request failed: {}", exc)
+            yield status(AGENT_STEP_ERROR)
+            yield "\n" + error_message(exc)
 
     def _stream(self, run: AgentRun, messages: list[BetaMessageParam]) -> Iterator[str]:
         for stream in self._runner(run, messages):  # one stream per model turn; tools run between turns
@@ -214,6 +226,18 @@ def describe(tool: str, args: dict) -> str:
         return AGENT_TOOL_STEP_DEFAULT.format(tool=tool)
     where = AGENT_TOOL_STEP_SCENARIO.format(args["scenario"]) if args.get("scenario") is not None else ""
     return template.format(query=args.get("query", ""), text=args.get("text", "")) + where
+
+
+def error_message(exc: anthropic.APIError) -> str:
+    """User message for an Anthropic error.
+
+    Args:
+        exc: the error raised by the SDK.
+
+    Returns:
+        The message of the nearest exception class listed in `AGENT_ERRORS`.
+    """
+    return next(AGENT_ERRORS[c.__name__] for c in type(exc).__mro__ if c.__name__ in AGENT_ERRORS)
 
 
 def answerer(rag: ExplanationPipeline, provider: str | None = None, model: str | None = None) -> Answer:
