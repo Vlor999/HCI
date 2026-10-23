@@ -47,10 +47,20 @@ class TestClaudeCost:
 
 
 class TestJevCost:
-    def test_unset_prices_give_none(self):
-        """Without the Jev price settings, the Jev cost is unknown."""
+    def test_unset_prices_give_none(self, monkeypatch):
+        """With a Jev price unset, the Jev cost is unknown."""
+        # Arrange
+        unset = get_settings().model_copy(update={"jev_price_input_per_mtok": None})
+        monkeypatch.setattr(pricing, "get_settings", lambda: unset)
         # Act / Assert
         assert pricing.jev_cost(1000, 100) is None
+
+    def test_default_prices_are_the_typesafe_list_price(self):
+        """By default Jev input costs $0.042 per million tokens and output is free."""
+        # Act
+        cost = pricing.jev_cost(MTOK, MTOK)
+        # Assert
+        assert cost is not None and cost.jev_usd == 0.042
 
     def test_set_prices_price_the_usage(self, monkeypatch):
         """With both Jev prices set, input and output are priced into `jev_usd`."""
