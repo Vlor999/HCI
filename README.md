@@ -4,11 +4,34 @@ A forest robot picks one path among several. This project lets it explain why, i
 records: past paths, the operating manual, reports, past corrections and operator updates. It is a small RAG system,
 local-first: everything runs on your machine with no key. Claude is an optional backend.
 
-```
-question ─► hybrid retrieval ─► Jev judge (optional) ─► grounded prompt ─► LLM ─► answer with [n] citations
-            (bge embeddings       drops irrelevant        current scenario        MLX / CUDA / CPU
-             + BM25, RRF)         passages, refuses       always in context       or Claude
-                                  unanswerable questions
+```mermaid
+flowchart LR
+    subgraph sources["Robot records (data/)"]
+        paths["paths.json<br/>path steps + travel time"]
+        docs["documents/<br/>md, txt, pdf, docx, pages"]
+        corr["corrections/ + explanations/"]
+        facts["facts.json<br/>operator updates"]
+    end
+
+    sources -->|"segment and chunk<br/>(headings, pages, overlap)"| index[("Hybrid index<br/>bge embeddings + BM25")]
+
+    user(["Operator<br/>CLI or phone"]) -->|"question (local)"| retrieve["Retrieve<br/>pinned scenario steps and facts<br/>+ top-k search, RRF fusion"]
+    index --> retrieve
+    retrieve --> jev{"Jev judge<br/>(optional)"}
+    jev -->|"not answerable"| refuse["I don't know<br/>from the records"]
+    jev -->|"relevant passages"| prompt["Grounded prompt<br/>numbered passages"]
+
+    prompt --> local["Local LLM<br/>MLX / CUDA / CPU"]
+    user -->|"question (-p anthropic)"| claude["Claude agent<br/>tool loop"]
+    claude <-->|"query_context tool"| retrieve
+    claude -->|"add_context<br/>proposes a fact"| approve{"Operator<br/>approves?"}
+    approve -->|yes| facts
+
+    local --> stream["Streamed answer<br/>steps + Markdown + [n] citations"]
+    claude --> stream
+    refuse --> stream
+    stream --> user
+    user -.->|"upload document"| docs
 ```
 
 If the records do not contain the answer, the app says it does not know.
