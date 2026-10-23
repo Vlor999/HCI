@@ -136,7 +136,7 @@ The index is rebuilt in memory at startup and whenever these files change.
 ## Agent mode
 
 With `-p anthropic`, Claude works on the records through three tools: `query_context` (search the records),
-`add_context` (propose a new fact) and `list_scenarios`. The operator approves every proposed fact before it is saved:
+`add_context` (propose a new fact) and `list_scenarios`. A proposed fact is saved only if the operator approves it:
 the CLI asks `[y/N]` and the phone shows Approve / Reject. Local models use the fixed pipeline, because they are too small to
 use tools reliably. A Claude failure (bad key, rate limit, network) ends the stream with a `Claude request failed` step and a
 message saying what to fix.
