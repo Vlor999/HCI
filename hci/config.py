@@ -28,10 +28,10 @@ class Settings(BaseSettings):
     )
     jev_timeout: float = Field(default=10, description="Jev HTTP timeout in seconds.")
     jev_price_input_per_mtok: float | None = Field(
-        default=None, ge=0, description="Jev price, USD per million input tokens; copy it from console.typesafe.ai."
+        default=0.042, ge=0, description="Jev price, USD per million input tokens (TypeSafe list price, 2026-10)."
     )
     jev_price_output_per_mtok: float | None = Field(
-        default=None, ge=0, description="Jev price, USD per million output tokens; copy it from console.typesafe.ai."
+        default=0.0, ge=0, description="Jev price, USD per million output tokens (free of charge per the API, 2026-10)."
     )
     typesafe_api_key: SecretStr | None = Field(
         default=None,

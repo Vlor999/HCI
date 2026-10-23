@@ -99,7 +99,7 @@ Every tunable is a field of `Settings` in `hci/config.py`, read from `HCI_<FIELD
 | `HCI_MAX_UPLOAD_MB` | `20` | largest phone upload |
 | `HCI_METRICS_ENABLED`, `HCI_METRICS_FILE` | `true`, `logs/metrics.jsonl` | metrics log |
 | `HCI_DASHBOARD_HOST`, `HCI_DASHBOARD_PORT` | `127.0.0.1`, `8790` | standalone dashboard bind |
-| `HCI_JEV_PRICE_INPUT_PER_MTOK`, `HCI_JEV_PRICE_OUTPUT_PER_MTOK` | none | Jev prices for cost estimates |
+| `HCI_JEV_PRICE_INPUT_PER_MTOK`, `HCI_JEV_PRICE_OUTPUT_PER_MTOK` | `0.042`, `0` | Jev prices for cost estimates |
 | `ANTHROPIC_API_KEY` | none | enables `-p anthropic` |
 | `TYPESAFE_API_KEY` | none | enables the Jev judge |
 
@@ -175,9 +175,10 @@ Claude turn is priced by the model that answered (`response.model`, the fallback
 input, output, cache write (1.25 x input, 5-minute cache) and cache read apart; a request sums its turns and its Jev
 calls. Prices live in `MODEL_PRICES` in `hci/constants.py`, in USD per million tokens, with the date they were copied
 (`PRICES_DATE`). A model or a component that is not listed is never guessed: its cost is `null` and
-`price_unknown` is set (the request's cost then covers the priced parts only). Local models cost 0. Jev does not
-publish prices, so set them from console.typesafe.ai: `HCI_JEV_PRICE_INPUT_PER_MTOK` and
-`HCI_JEV_PRICE_OUTPUT_PER_MTOK`; until then the Jev cost is `null` and the dashboard says "Jev price not set".
+`price_unknown` is set (the request's cost then covers the priced parts only). Local models cost 0. Jev costs
+$0.042 per million input tokens, and its output tokens are free of charge (TypeSafe, October 2026); override with
+`HCI_JEV_PRICE_INPUT_PER_MTOK` and `HCI_JEV_PRICE_OUTPUT_PER_MTOK`. Unsetting either price makes the Jev cost `null`
+and the dashboard says "Jev price not set".
 
 The question text is not logged, only its length (`HCI_METRICS_LOG_QUESTIONS=true` adds it). Document
 contents, tool inputs and results, API keys and the token are never logged. `HCI_METRICS_ENABLED=false` turns it off.
